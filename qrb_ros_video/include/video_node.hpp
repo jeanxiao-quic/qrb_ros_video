@@ -27,6 +27,9 @@ public:
     , log_level(declare_parameter<std::string>("log-level", "info"))
   {
     RCLCPP_INFO(get_logger(), "VideoNode %s has been started.", node_name.c_str());
+    if (!options.use_intra_process_comms()) {
+      RCLCPP_WARN(get_logger(), "Recommend to enable use_intra_process_comms to optimize max performance");
+    }
 
     subscription = this->template create_subscription<InputMessageT>(
         "input", 10, [this](const InputMessageT & msg) { handle_message(msg); });
