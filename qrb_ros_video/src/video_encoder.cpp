@@ -64,12 +64,48 @@ public:
 protected:
   bool handle_message(const InputMessageT & msg) override
   {
+    this->seqno++;
     bool ret = this->handle_message_(msg);
     return ret;
   }
 
+  virtual bool check_framerate(const transport::type::Image & msg)
+  {
+    if (msg.header.frame_id.empty())
+      return false;
+
+    auto frame_id = msg.header.frame_id;
+    
+    // search @num/denom in frame_id
+    // e.g. "123@30" or "123/4@30"
+    std::regex re("@(\\d+)(?:/(\\d+))?");
+    std::smatch match;
+    if (std::regex_search(frame_id, match, re)) {
+      int numerator = std::stoi(match[1]);
+      int denominator = match[2].length() ? std::stoi(match[2]) : 1;
+      int fps = static_cast<double>(numerator) / denominator;
+
+      // Check if user set this parameter
+      auto overrides = this->get_node_parameters_interface()->get_parameter_overrides();
+      bool user_set = overrides.count("framerate") > 0;
+
+      if (!user_set) {
+        RCLCPP_INFO(this->get_logger(), "update framerate to %d", fps);
+        this->framerate = std::to_string(fps);
+      }
+      RCLCPP_INFO(this->get_logger(), "check framerate to %d", fps);
+
+      return this->framerate == std::to_string(fps);
+    }
+    RCLCPP_ERROR(this->get_logger(), "Invalid framerate format: %s", frame_id.c_str());
+    return false;
+  }
+
   virtual bool handle_message_(const transport::type::Image & msg)
   {
+    std::call_once(check_once, [&]() {
+        check_framerate(msg);
+    });
     auto allocation = std::make_shared<Allocation>();
     allocation->fd = msg.dmabuf->fd();
     allocation->size = msg.dmabuf->size();
@@ -109,7 +145,7 @@ protected:
     auto msg = std::make_unique<transport::type::Image>();
     msg->header.stamp.sec = item->timestamp.tv_sec;
     msg->header.stamp.nanosec = item->timestamp.tv_usec * 1000L;
-    // msg->header.set__frame_id(item->sequence);
+    msg->header.frame_id = std::to_string(this->seqno) + "@" + this->framerate;
     auto view = item->view();
     msg->width = view.width;
     msg->height = view.height;
@@ -132,7 +168,8 @@ protected:
     auto msg = std::make_unique<sensor_msgs::msg::CompressedImage>();
     msg->header.stamp.sec = item->timestamp.tv_sec;
     msg->header.stamp.nanosec = item->timestamp.tv_usec * 1000L;
-    // msg->header.set__frame_id(item->sequence);
+    // set frame with string "seqno@fps"
+    msg->header.frame_id = std::to_string(this->seqno) + "@" + this->framerate;
     item->memory->map();
     size_t image_size = item->bytesused;
     if (not msg->data.empty())
@@ -158,6 +195,7 @@ private:
   std::string width;
   std::string height;
   std::string framerate;
+  std::once_flag check_once;
 
   std::shared_ptr<Client> encoder_;
   std::shared_ptr<VideoCodec::Notifier> cb_;

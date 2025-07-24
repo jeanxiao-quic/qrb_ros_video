@@ -29,7 +29,7 @@ target_include_directories(ros2video_component PUBLIC
 target_compile_features(ros2video_component PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 target_link_directories(ros2video_component PRIVATE $<TARGET_LINKER_FILE_DIR:v4l2codecs>)
 set_target_properties(ros2video_component PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION 1)
-target_link_libraries(ros2video_component lib_mem_dmabuf qrb_ros_transport_image_type v4l2codecs)
+target_link_libraries(ros2video_component v4l2codecs)
 ament_target_dependencies(
   ros2video_component
   "std_msgs"

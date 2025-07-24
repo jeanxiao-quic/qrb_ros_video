@@ -63,6 +63,11 @@ bool V4l2Encoder::start()
   v4l2_encoder_cmd cmd = {};
   cmd.cmd = V4L2_ENC_CMD_START;
   driver->encCommand(&cmd) == 0;
+
+  v4l2_control ctrl = {};
+  ctrl.id = V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO;
+  ctrl.value = 1;  // Enable VUI timing info
+  driver->setControl(&ctrl);
   return V4l2Codec::start();
 }
 

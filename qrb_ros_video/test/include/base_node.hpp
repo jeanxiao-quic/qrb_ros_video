@@ -51,7 +51,9 @@ public:
       denominator = framerate_.substr(pos + 1);
     }
     std::string numerator = framerate_.substr(0, pos);
-    fps_ = std::stof(numerator) / std::stof(denominator);
+    if (std::stof(denominator) != 0) {
+      fps_ = std::stof(numerator) / std::stof(denominator);
+    }
 
     // Set ROS Node log level
     auto log_level = rclcpp::Logger::Level::Warn;
@@ -179,9 +181,13 @@ protected:
           gint fps_denom = gst_discoverer_video_info_get_framerate_denom(video_info);
 
           // Avoid division by zero
-          if (fps_denom > 0) {
-            framerate_ = std::to_string(fps_num) + "/" + std::to_string(fps_denom);
-            fps_ = static_cast<float>(fps_num) / static_cast<float>(fps_denom);
+          if (fps_denom > 0 && fps_num > 0) {
+            auto framerate = std::to_string(fps_num) + "/" + std::to_string(fps_denom);
+            auto fps = static_cast<float>(fps_num) / static_cast<float>(fps_denom);
+            if (fps != fps_) {
+              RCLCPP_WARN(this->get_logger(),
+                  "Detected framerate: %s (%f fps)", framerate.c_str(), fps);
+            }
           }
 
           RCLCPP_INFO(this->get_logger(), "Video properties: %sx%s @ %s fps", width_.c_str(),
