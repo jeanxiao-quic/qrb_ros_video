@@ -1,3 +1,11 @@
+qrb-video-v4l2-lib (0.1.2) stable; urgency=medium
+
+  * Fix: Ensure proper handling of video frame rates in MP4 container
+  * Update documentation for framerate processing
+  * Minor bug fixes and performance improvements
+
+ -- Jean Xiao <jianxiao@qti.qualcomm.com>  Tue, 29 Jul 2025 12:00:00 +0000
+
 qrb-video-v4l2-lib (0.1.0) noble; urgency=medium
 
   * Initial release of QRB Video V4L2 Library

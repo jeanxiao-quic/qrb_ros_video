@@ -5,6 +5,8 @@
 **************************************************************************************************
 */
 
+#include <linux/v4l2-controls.h>
+
 #ifndef V4L2_VIDC_EXTENSIONS_HPP_
 #define V4L2_VIDC_EXTENSIONS_HPP_
 
@@ -26,6 +28,17 @@
 
 #ifndef V4L2_BUF_FLAG_CODECCONFIG
 #define V4L2_BUF_FLAG_CODECCONFIG 0x01000000
+#endif
+
+#ifdef V4L2_CTRL_CLASS_CODEC
+#define V4L2_CID_MPEG_VIDC_BASE (V4L2_CTRL_CLASS_CODEC | 0x2000)
+#else
+#define V4L2_CID_MPEG_VIDC_BASE (V4L2_CTRL_CLASS_MPEG | 0x2000)
+#endif
+
+#ifndef V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO
+#define V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO                                    \
+    (V4L2_CID_MPEG_VIDC_BASE + 0x43)
 #endif
 
 #endif  // V4L2_VIDC_EXTENSIONS_HPP_
