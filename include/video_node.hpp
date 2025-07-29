@@ -53,6 +53,7 @@ protected:
   std::string pixel_format;
   std::string format;
   std::string log_level;
+  std::atomic<uint64_t> seqno = 0;
 
   typename rclcpp::Subscription<InputMessageT>::SharedPtr subscription;
   typename rclcpp::Publisher<OutputMessageT>::SharedPtr publisher;

@@ -207,7 +207,7 @@ protected:
     gst_app_src_set_emit_signals(app_src_, TRUE);
     gst_app_src_set_max_bytes(app_src_, 0);  // No limit on buffer size
     g_object_set(G_OBJECT(app_src_), "is-live", TRUE, NULL);
-    g_object_set(G_OBJECT(app_src_), "do-timestamp", TRUE, NULL);
+    g_object_set(G_OBJECT(app_src_), "do-timestamp", FALSE, NULL);
 
     // Set caps based on mode
     GstCaps * caps;
@@ -215,14 +215,13 @@ protected:
       { "h265", "video/x-h265" } };
     if (pixel_format_ == "nv12") {
       // For nv12 encoding input (raw video)
-      caps =
-          gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "NV12", "width", G_TYPE_INT,
-              1920, "height", G_TYPE_INT, 1080, "framerate", GST_TYPE_FRACTION, 30, 1, NULL);
+      caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "NV12", "width", G_TYPE_INT,
+          1920, "height", G_TYPE_INT, 1080, "framerate", GST_TYPE_FRACTION, static_cast<guint>(fps_), 1, NULL);
     } else {
       // For decoder input (h264)
       try {
         caps = gst_caps_new_simple(mime_mapping.at(pixel_format_).c_str(), "stream-format",
-            G_TYPE_STRING, "byte-stream", "alignment", G_TYPE_STRING, "au", NULL);
+            G_TYPE_STRING, "byte-stream", "alignment", G_TYPE_STRING, "au", "framerate", GST_TYPE_FRACTION, static_cast<guint>(fps_), 1, NULL);
       } catch (const std::exception & e) {
         RCLCPP_ERROR(this->get_logger(), "Invalid pixel format: %s", pixel_format_.c_str());
         return;
@@ -286,6 +285,25 @@ protected:
     if (pixel_format_.empty()) {
       pixel_format_ = msg->format;
       RCLCPP_INFO(this->get_logger(), "Detected pixel format: %s", pixel_format_.c_str());
+
+      auto frame_id = msg->header.frame_id;
+      if (! frame_id.empty()) {
+        // extract framerate with format seqno@fps
+        auto pos = frame_id.find('@');
+        if (pos != std::string::npos) {
+          auto fps_str = frame_id.substr(pos + 1);
+          try {
+            float fps = std::stof(fps_str);
+            RCLCPP_INFO(this->get_logger(), "Detected framerate: %.2f", fps);
+            if (fps_ != fps) {
+              fps_ = fps;
+              RCLCPP_INFO(this->get_logger(), "Updated framerate to: %.2f", fps_);
+            }
+          } catch (const std::invalid_argument & e) {
+            RCLCPP_ERROR(this->get_logger(), "Invalid framerate format: %s", fps_str.c_str());
+          }
+        }
+      }
     }
 
     // Create a new buffer that wraps the vector's data
@@ -305,6 +323,7 @@ protected:
 
     auto stamp = msg->header.stamp;
     GST_BUFFER_PTS(buffer) = stamp.sec * GST_SECOND + stamp.nanosec;
+    GST_BUFFER_DTS(buffer) = GST_BUFFER_PTS(buffer);
 
     return buffer;
   }
@@ -372,6 +391,7 @@ protected:
       return nullptr;
     }
     GST_BUFFER_PTS(buffer) = stamp.sec * GST_SECOND + stamp.nanosec;
+    GST_BUFFER_DTS(buffer) = GST_BUFFER_PTS(buffer);
     gst_buffer_add_video_meta(buffer, GST_VIDEO_FRAME_FLAG_NONE, format, width, height);
 
     gst_object_unref(allocator);

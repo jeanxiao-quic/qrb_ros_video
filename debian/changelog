@@ -1,3 +1,10 @@
+ros-jazzy-qrb-ros-video (0.1.2) noble; urgency=medium
+
+  * Fix MP4 container video processing with framerate handling
+  * Ensure correct handling of video streams in MP4 format
+
+ -- Jean Xiao <jianxiao@qti.qualcomm.com>  Fri, 17 Jan 2025 12:00:00 +0000
+
 ros-jazzy-qrb-ros-video (0.1.1) noble; urgency=medium
 
   * Add ros-jazzy-qrb-ros-video-test package

@@ -44,6 +44,7 @@ public:
   bool onBufferAvailable(const std::shared_ptr<Buffer> & item) override
   {
     RCLCPP_DEBUG(this->get_logger(), "received output buffer: [%ld]", item->index);
+    this->seqno++;
     publish_message_<Type>(item);
     RCLCPP_DEBUG(this->get_logger(), "output buffer: [%ld] publish completed", item->index);
     return true;
@@ -129,7 +130,7 @@ protected:
     auto msg = std::make_unique<Type>();
     msg->header.stamp.sec = item->timestamp.tv_sec;
     msg->header.stamp.nanosec = item->timestamp.tv_usec * 1000L;
-    // msg->header.set__frame_id(item->sequence);
+    msg->header.frame_id = std::to_string(this->seqno);
     auto view = item->view();
     msg->width = view.width;
     msg->height = view.height;

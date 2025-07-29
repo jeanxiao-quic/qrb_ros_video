@@ -59,6 +59,7 @@ public:
     // Create timer to publish data at 1/fps interval
     timer_ = this->create_wall_timer(std::chrono::milliseconds(static_cast<int>(1000 / fps_)),
         std::bind(&SourceNodeBase::timer_callback, this));
+    RCLCPP_INFO(this->get_logger(), "live source at fps %f", fps_);
   }
 
   ~SourceNodeBase()
@@ -279,7 +280,7 @@ protected:
         // Fill message header
         auto ros_now = this->now();  // Use rclcpp::Node::now() for ROS timestamp
         msg->header.stamp = ros_now;
-        msg->header.frame_id = std::to_string(count);
+        msg->header.frame_id = std::to_string(count) + "@" + framerate_;
 
         if (gst_buffer_map(buffer, &map, GST_MAP_READ)) {
           fill_message(msg, map.data, map.size);
