@@ -11,7 +11,9 @@ Build-Depends: debhelper-compat (= 13),
                ros-jazzy-rclcpp,
                ros-jazzy-rclcpp-components,
                ros-jazzy-qrb-ros-transport-image-type,
-               ros-jazzy-ament-cmake-auto
+               ros-jazzy-ament-cmake-auto,
+               libgstreamer1.0-dev,
+               libgstreamer-plugins-base1.0-dev
 Standards-Version: 4.6.0
 Homepage: https://github.com/qualcomm-qrb-ros/qrb-ros-video
 Vcs-Git: https://github.com/qualcomm-qrb-ros/qrb-ros-video.git
@@ -30,4 +32,18 @@ Depends: ${shlibs:Depends},
 Description: QRB ROS Video Package
  ROS 2 package providing video encoding and decoding nodes for Qualcomm
  Robotics platforms. Includes components for hardware-accelerated video
- processing using V4L2 codecs. 
+ processing using V4L2 codecs.
+
+Package: ros-jazzy-qrb-ros-video-test
+Architecture: any
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         ros-jazzy-qrb-ros-video,
+         gstreamer1.0-plugins-base,
+         gstreamer1.0-plugins-good,
+         gstreamer1.0-plugins-bad,
+Description: QRB ROS Video Test Utilities
+ Test utilities and components for the QRB ROS Video package. Includes
+ test nodes for video source reading, sink writing, and validation of
+ video encoding/decoding functionality. Provides ImageReader, ImageWriter,
+ CompressedReader, and CompressedWriter test components. 
