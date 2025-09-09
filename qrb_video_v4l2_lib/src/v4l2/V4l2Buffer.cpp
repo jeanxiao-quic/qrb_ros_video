@@ -6,6 +6,7 @@
 */
 
 #include "V4l2Buffer.hpp"
+
 #include "V4l2Driver.hpp"
 
 namespace qrb::video_v4l2

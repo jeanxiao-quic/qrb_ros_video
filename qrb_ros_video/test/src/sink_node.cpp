@@ -58,8 +58,9 @@ public:
         RCLCPP_WARN(this->get_logger(), "gst_app_src_end_of_stream() failed with %s",
             gst_flow_get_name(ret));
       } else {
-        RCLCPP_INFO(this->get_logger(), "EOS sent to appsrc. Waiting for EOS message on the "
-                                        "bus...");
+        RCLCPP_INFO(this->get_logger(),
+            "EOS sent to appsrc. Waiting for EOS message on the "
+            "bus...");
 
         GstBus * bus = gst_element_get_bus(pipeline_);
         if (bus) {
@@ -215,13 +216,15 @@ protected:
       { "h265", "video/x-h265" } };
     if (pixel_format_ == "nv12") {
       // For nv12 encoding input (raw video)
-      caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "NV12", "width", G_TYPE_INT,
-          1920, "height", G_TYPE_INT, 1080, "framerate", GST_TYPE_FRACTION, static_cast<guint>(fps_), 1, NULL);
+      caps = gst_caps_new_simple("video/x-raw", "format", G_TYPE_STRING, "NV12", "width",
+          G_TYPE_INT, 1920, "height", G_TYPE_INT, 1080, "framerate", GST_TYPE_FRACTION,
+          static_cast<guint>(fps_), 1, NULL);
     } else {
       // For decoder input (h264)
       try {
         caps = gst_caps_new_simple(mime_mapping.at(pixel_format_).c_str(), "stream-format",
-            G_TYPE_STRING, "byte-stream", "alignment", G_TYPE_STRING, "au", "framerate", GST_TYPE_FRACTION, static_cast<guint>(fps_), 1, NULL);
+            G_TYPE_STRING, "byte-stream", "alignment", G_TYPE_STRING, "au", "framerate",
+            GST_TYPE_FRACTION, static_cast<guint>(fps_), 1, NULL);
       } catch (const std::exception & e) {
         RCLCPP_ERROR(this->get_logger(), "Invalid pixel format: %s", pixel_format_.c_str());
         return;
@@ -287,7 +290,7 @@ protected:
       RCLCPP_INFO(this->get_logger(), "Detected pixel format: %s", pixel_format_.c_str());
 
       auto frame_id = msg->header.frame_id;
-      if (! frame_id.empty()) {
+      if (!frame_id.empty()) {
         // extract framerate with format seqno@fps
         auto pos = frame_id.find('@');
         if (pos != std::string::npos) {

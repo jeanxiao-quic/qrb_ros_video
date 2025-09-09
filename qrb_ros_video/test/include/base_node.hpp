@@ -185,8 +185,8 @@ protected:
             auto framerate = std::to_string(fps_num) + "/" + std::to_string(fps_denom);
             auto fps = static_cast<float>(fps_num) / static_cast<float>(fps_denom);
             if (fps != fps_) {
-              RCLCPP_WARN(this->get_logger(),
-                  "Detected framerate: %s (%f fps)", framerate.c_str(), fps);
+              RCLCPP_WARN(
+                  this->get_logger(), "Detected framerate: %s (%f fps)", framerate.c_str(), fps);
             }
           }
 

@@ -136,20 +136,9 @@ appsrc ! filesink
 
 ## ✨ Installation
 
-### Prerequisites
+> 📌 **For complete installation instructions, please refer to the main [QRB ROS Video Installation Guide](../../README.md#-installation)**
 
-```bash
-# Install Qualcomm PPA
-sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-ppa
-sudo apt update
-```
-
-### Install from Package
-
-```bash
-# Install QRB ROS Video test nodes
-sudo apt install ros-jazzy-qrb-video-test
-```
+The test nodes are included with the main QRB ROS Video package installation. Once you have installed the main package following the instructions in the [main README.md](../../README.md), the test nodes will be available for use.
 
 ## 🚀 Usage
 Launch the video encoder for real-time video compression:
@@ -214,11 +203,6 @@ colcon build --packages-select qrb_ros_video --cmake-args -DBUILD_TESTING=ON
 source install/setup.bash
 ```
 
-## 🤝 Contributing
-
-We love community contributions! Get started by reading our [CONTRIBUTING.md](CONTRIBUTING.md).  
-Feel free to create an issue for bug reports, feature requests, or any discussion 💡.
-
 ## ❔ FAQs
 
 <details>
@@ -245,7 +229,3 @@ Monitor system performance during video processing. Hardware acceleration should
 <summary>What are the performance expectations for the test nodes?</summary><br>
 Performance depends on video resolution, frame rate, and hardware capabilities. The test nodes are optimized for real-time processing and should handle standard video formats (1080p@30fps) with minimal latency when hardware acceleration is available.
 </details>
-
-## 📜 License
-
-This project is licensed under BSD-3-Clause-Clear. See the [LICENSE](LICENSE) file for details. 

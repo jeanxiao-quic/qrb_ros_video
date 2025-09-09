@@ -177,16 +177,15 @@ protected:
         [this]() {
           std::ostringstream oss;
           oss << "filesrc location=" << url_ << " ! rawvideoparse width=" << width_
-              << " height=" << height_ << " format=nv12"
-              << " framerate=" << framerate_ << " ! appsink name=sink";
+              << " height=" << height_ << " format=nv12" << " framerate=" << framerate_
+              << " ! appsink name=sink";
           return oss.str();
         } },
     { "mp4",
         [this]() {
           std::ostringstream oss;
-          oss << "filesrc location=" << url_ << " ! qtdemux"
-              << " ! " << pixel_format_ << "parse ! video/x-" << pixel_format_
-              << ",stream-format=byte-stream,alignment=au"
+          oss << "filesrc location=" << url_ << " ! qtdemux" << " ! " << pixel_format_
+              << "parse ! video/x-" << pixel_format_ << ",stream-format=byte-stream,alignment=au"
               << " ! appsink name=sink";
           return oss.str();
         } },

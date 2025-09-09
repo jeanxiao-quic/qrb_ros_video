@@ -78,16 +78,16 @@ flowchart LR
 
 | Topic | Message Type | Description |
 |-------|-------------|-------------|
-| `input` | `qrb_ros::transport::type::Image` | Uncompressed YUV frames |
-| `output` | `sensor_msgs::msg::CompressedImage` | Compressed H.264/H.265 video stream |
+| `/input` | `qrb_ros::transport::type::Image` | Uncompressed YUV frames |
+| `/output` | `sensor_msgs::msg::CompressedImage` | Compressed H.264/H.265 video stream |
 
 
 **Topics: Decoder**
 
 | Topic | Message Type | Description |
 |-------|-------------|-------------|
-| `input` | `sensor_msgs::msg::CompressedImage` | Compressed H.264/H.265 video stream |
-| `output` | `qrb_ros::transport::type::Image` | Decoded YUV frames |
+| `/input` | `sensor_msgs::msg::CompressedImage` | Compressed H.264/H.265 video stream |
+| `/output` | `qrb_ros::transport::type::Image` | Decoded YUV frames |
 
 #### ROS Parameters
 
@@ -115,7 +115,7 @@ flowchart LR
 ## 🎯 Supported Targets
 
 - **Ubuntu 24.04 LTS (Noble)**
-- **ROS 2 Humble Humble and Jazzy**
+- **ROS 2 Humble and Jazzy**
 
 Hardware Requirements:
 - Qualcomm Video Processing Unit (VPU) for hardware acceleration
@@ -124,6 +124,22 @@ Hardware Requirements:
 ---
 
 ## ✨ Installation
+
+### Prerequisites
+
+```bash
+# Install Qualcomm PPA
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-ppa
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qirp
+sudo apt update
+```
+
+### Install Packages
+
+```bash
+# Install QRB ROS Video packages
+sudo apt install ros-jazzy-qrb-ros-video ros-jazzy-qrb-ros-video-test
+```
 
 
 ## 🚀 Usage
@@ -157,60 +173,33 @@ ros2 launch qrb_ros_video decoder_launch.py
 
 ## 👨‍💻 Build from Source
 
-Currently, we only support build with QCLINUX SDK.
+```bash
+# Install build tools and dependencies
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-ppa
+sudo apt update
+sudo apt install build-essential cmake pkg-config
 
-1. Setup environments follow this document 's [Set up the cross-compile environment.](https://docs.qualcomm.com/bundle/publicresource/topics/80-65220-2/develop-your-first-application_6.html?product=1601111740013072&facet=Qualcomm%20Intelligent%20Robotics%20(QIRP)%20Product%20SDK&state=releasecandidate) part
-2. Create `ros_ws` directory in `<qirp_decompressed_workspace>/qirp-sdk/`
-3. Clone this repository under `<qirp_decompressed_workspace>/qirp-sdk/ros_ws`
+# Install ROS2 Jazzy (if not already installed)
+# Follow instructions at https://docs.ros.org/en/jazzy/Installation.html
+sudo apt install ros-jazzy-rclcpp ros-jazzy-rclcpp-components ros-jazzy-ament-cmake-auto ros-jazzy-std-msgs ros-jazzy-sensor-msgs ros-jazzy-qrb-ros-transport-image-type
+```
 
-    ```bash
-    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_imu.git
-    git clone https://github.com/qualcomm-qrb-ros/lib_mem_dmabuf.git
-    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_transport.git
-    git clone https://github.com/qualcomm-qrb-ros/qrb_ros_video.git
-    ```
+### Step 2: Clone and Build
 
-4. Build this project
+```bash
+# Navigate to your ROS2 workspace
+cd ~/ros2_ws/src
 
-   * For ROS2 Humble
+# Clone the repository (if not already cloned)
+git clone https://github.com/qualcomm-qrb-ros/qrb_ros_video qrb_ros_video
 
-   ```bash
-   export AMENT_PREFIX_PATH="${OECORE_TARGET_SYSROOT}/usr;${OECORE_NATIVE_SYSROOT}/usr"
-   export PYTHONPATH=${PYTHONPATH}:${OECORE_TARGET_SYSROOT}/usr/lib/python3.10/site-packages
-   
-   colcon build --merge-install --cmake-args \
-     -DPython3_ROOT_DIR=${OECORE_TARGET_SYSROOT}/usr \
-     -DPython3_NumPy_INCLUDE_DIR=${OECORE_TARGET_SYSROOT}/usr/lib/python3.10/site-packages/numpy/core/include \
-     -DPYTHON_SOABI=cpython-310-aarch64-linux-gnu -DCMAKE_STAGING_PREFIX=$(pwd)/install \
-     -DCMAKE_PREFIX_PATH=$(pwd)/install/share \
-     -DBUILD_TESTING=OFF
-   ```
+# Build the test nodes
+cd ~/ros2_ws
+colcon build --packages-select qrb_ros_video
 
-   * For ROS2 Jazzy
-
-   ```bash
-   export AMENT_PREFIX_PATH="${OECORE_TARGET_SYSROOT}/usr;${OECORE_NATIVE_SYSROOT}/usr"
-   export PYTHONPATH=${PYTHONPATH}:${OECORE_NATIVE_SYSROOT}/usr/lib/python3.12/site-packages
-
-   colcon build --merge-install --cmake-args \
-      -DPython3_ROOT_DIR=${OECORE_NATIVE_SYSROOT}/usr \
-      -DPython3_NumPy_INCLUDE_DIR=${OECORE_NATIVE_SYSROOT}/usr/lib/python3.12/site-packages/numpy/core/include \
-      -DSYSROOT_LIBDIR=${OECORE_TARGET_SYSROOT}/usr/lib \
-      -DSYSROOT_INCDIR=${OECORE_TARGET_SYSROOT}/usr/include \
-      -DPYTHON_SOABI=cpython-312-aarch64-linux-gnu -DCMAKE_STAGING_PREFIX=$(pwd)/install \
-      -DCMAKE_PREFIX_PATH=$(pwd)/install/share \
-      -DBUILD_TESTING=OFF
-   ```
-
-5. Push to the device & Install
-
-   ```bash
-   cd `<qirp_decompressed_workspace>/qirp-sdk/ros_ws/install`
-   tar czvf qrb_ros_video.tar.gz lib share
-   scp qrb_ros_video.tar.gz root@[ip-addr]:/opt/
-   ssh root@[ip-addr]
-   (ssh) tar -zxf /opt/qrb_ros_video.tar.gz -C /opt/qcom/qirp-sdk/usr/
-   ```
+# Source the workspace
+source install/setup.bash
+```
 
 ## 🤝 Contributing
 

@@ -345,11 +345,6 @@ make -j$(nproc)
 sudo make install
 ```
 
-## 🤝 Contributing
-
-We love community contributions! Get started by reading our [CONTRIBUTING.md](CONTRIBUTING.md).  
-Feel free to create an issue for bug reports, feature requests, or any discussion 💡.
-
 ## ❔ FAQs
 
 <details>
@@ -366,7 +361,3 @@ You can verify hardware acceleration by checking V4L2 device nodes (usually /dev
 <summary>What are the memory requirements?</summary><br>
 Memory requirements depend on video resolution, frame rate, and codec settings. The library includes optimized buffer management to minimize memory usage while maintaining performance.
 </details>
-
-## 📜 License
-
-This project is licensed under BSD-3-Clause-Clear. See the [LICENSE](LICENSE) file for details.

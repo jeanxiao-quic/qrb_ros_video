@@ -76,6 +76,6 @@ struct Message
   std::promise<value_type> promise;
   std::any data;
 };
-}  // namespace qrb::v4l2
+}  // namespace qrb::video_v4l2
 
 #endif  // QRB_VIDEO_V4L2__HANDLER_HPP_

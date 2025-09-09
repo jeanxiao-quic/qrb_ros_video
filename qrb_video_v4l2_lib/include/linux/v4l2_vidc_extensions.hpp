@@ -37,8 +37,7 @@
 #endif
 
 #ifndef V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO
-#define V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO                                    \
-    (V4L2_CID_MPEG_VIDC_BASE + 0x43)
+#define V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO (V4L2_CID_MPEG_VIDC_BASE + 0x43)
 #endif
 
 #endif  // V4L2_VIDC_EXTENSIONS_HPP_

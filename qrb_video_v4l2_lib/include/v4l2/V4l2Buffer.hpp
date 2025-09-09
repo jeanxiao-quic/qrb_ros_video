@@ -7,9 +7,9 @@
 
 #ifndef QRB_VIDEO_V4L2__V4L2BUFFER_HPP_
 #define QRB_VIDEO_V4L2__V4L2BUFFER_HPP_
-#include <linux/v4l2_vidc_extensions.hpp>
 #include <linux/videodev2.h>
 
+#include <linux/v4l2_vidc_extensions.hpp>
 #include <memory>
 
 #include "BufferChannel.hpp"

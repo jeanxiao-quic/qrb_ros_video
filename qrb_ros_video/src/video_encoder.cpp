@@ -75,7 +75,7 @@ protected:
       return false;
 
     auto frame_id = msg.header.frame_id;
-    
+
     // search @num/denom in frame_id
     // e.g. "123@30" or "123/4@30"
     std::regex re("@(\\d+)(?:/(\\d+))?");
@@ -103,9 +103,7 @@ protected:
 
   virtual bool handle_message_(const transport::type::Image & msg)
   {
-    std::call_once(check_once, [&]() {
-        check_framerate(msg);
-    });
+    std::call_once(check_once, [&]() { check_framerate(msg); });
     auto allocation = std::make_shared<Allocation>();
     allocation->fd = msg.dmabuf->fd();
     allocation->size = msg.dmabuf->size();

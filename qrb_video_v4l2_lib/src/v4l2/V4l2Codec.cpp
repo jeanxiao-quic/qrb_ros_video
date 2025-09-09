@@ -405,8 +405,8 @@ bool V4l2Codec::queueInputBuffer(const std::shared_ptr<Buffer> & item)
   }
   ret = getDriver()->queueBuf(&buf);
   if (ret == 0) {
-      LOGI("%s: queued index %d buffer type %d", __PRETTY_FUNCTION__, buf.index, buf.type);
-      buffer_queued_[INPUT_PORT][buf.index] = buffer;
+    LOGI("%s: queued index %d buffer type %d", __PRETTY_FUNCTION__, buf.index, buf.type);
+    buffer_queued_[INPUT_PORT][buf.index] = buffer;
   } else {
     LOGE("%s: failed to queue buffer %d buffer type %d", __PRETTY_FUNCTION__, buf.index, buf.type);
   }
