@@ -1,47 +1,161 @@
-# QRB ROS VIDEO
-QRB ROS Video is a ROS package which provides video hardware acceleration capabilities on Qualcomm platform.
+<div align="center">
+  <h1>QRB ROS Video</h1>
+  <p align="center">
+    <!-- Add images or videos to showcase your project demo, use case, or logo -->
+  </p>
+  <p>Hardware-accelerated video processing package for Qualcomm robotics platforms</p>
+  
+  <a href="https://ubuntu.com/download/qualcomm-iot" target="_blank"><img src="https://img.shields.io/badge/Qualcomm%20Ubuntu-E95420?style=for-the-badge&logo=ubuntu&logoColor=white" alt="Qualcomm Ubuntu"></a>
+  <a href="https://docs.ros.org/en/jazzy/" target="_blank"><img src="https://img.shields.io/badge/ROS%20Jazzy-1c428a?style=for-the-badge&logo=ros&logoColor=white" alt="Jazzy"></a>
+  
+</div>
 
-## Overview
-QRB ROS Video utilizes the advanced Qualcomm VPU hardware for video encoding and decoding to meet the requirements of Robotics applications. QRB ROS Video is based on [qrb_ros_transport](https://github.com/qualcomm-qrb-ros/qrb_ros_transport) which help us to implement zero memory copy locally and accept buffers from [qrb_ros_camera](https://github.com/qualcomm-qrb-ros/qrb_ros_camera) to fulfill the recording purpose.
+---
 
-Right now, we support H264 codec. HEVC support will be added in future.
+## 👋 Overview
 
-## Getting Started
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
+> 📌 **QRB ROS Video Package Features**
+> - Hardware-accelerated H.264/H.265 video encoding and decoding using Qualcomm VPU
+> - Zero-copy memory management for high-performance video processing
+> - Seamless integration with ROS 2 ecosystem and camera pipelines
+> - Support for real-time video streaming and file I/O operations
 
-### System Requirement
+> 📌 **System Architecture**
 
-* ROS 2 Humble and later, for type adaption support.
-
-
-### Running
-
-This package supports running it from ROS launch file.
-
-1. Source this file to set up the environment on your device:
-
-   ```bash
-   ssh root@[ip-addr]
-   (ssh) export HOME=/opt
-   (ssh) source /opt/qcom/qirp-sdk/qirp-setup.sh
-   (ssh) export ROS_DOMAIN_ID=xx
-   (ssh) source /usr/bin/ros_setup.bash
-   ```
-2. launch commands
-
-    - Encoding:
-
-    ```bash
-    ros launch qrb_ros_video encoder_launch.py
-    ```
+```mermaid
+flowchart LR
+    %% Node definitions with custom styling
+    CameraNode["Camera Node<br>(qrb_ros::camera::CameraNode)"]:::publisher
+    ImageReader["ImageReader<br>(qrb_ros::video::ImageReader)"]:::publisher
+    EncoderNode["Video Encoder Node<br>(qrb_ros::video::Encoder)"]:::pubsub
+    CompressedWriter["CompressedWriter<br>(qrb_ros::video::CompressedWriter)"]:::subscriber
+    CompressedReader["CompressedReader<br>(qrb_ros::video::CompressedReader)"]:::publisher
+    DecoderNode["Video Decoder Node<br>(qrb_ros::video::Decoder)"]:::pubsub
+    ImageWriter["ImageWriter<br>(qrb_ros::video::ImageWriter)"]:::subscriber
+    DisplayNode["Display Node<br>(Optional)"]:::subscriber
     
-	* Decoding
-	
-	```bash
-	ros launch qrb_ros_video decoder_launch.py
-	```
+    %% Topic connections
+    CameraNode -- "Topic: qrb_ros::transport::type::Image" --> EncoderNode
+    ImageReader -- "Topic: qrb_ros::transport::type::Image" --> EncoderNode
+    EncoderNode -- "Topic: sensor_msgs::msg::CompressedImage" --> DecoderNode
+    EncoderNode -- "Topic: sensor_msgs::msg::CompressedImage" --> CompressedWriter
+    CompressedReader -- "Topic: sensor_msgs::msg::CompressedImage" --> DecoderNode
+    DecoderNode -- "Topic: qrb_ros::transport::type::Image" --> ImageWriter
+    DecoderNode -- "Topic: qrb_ros::transport::type::Image" --> DisplayNode
+    
+    %% Custom styling for nodes
+    classDef publisher fill:#ff9900,stroke:#333,stroke-width:2px,color:#000
+    classDef subscriber fill:#42d1f5,stroke:#333,stroke-width:2px,color:#000
+    classDef pubsub fill:#c3ff00,stroke:#333,stroke-width:2px,color:#000
+    classDef parameter fill:#dddddd,stroke:#333,stroke-width:2px,color:#000
+```
 
-## Building
+> 📌 **Architecture Components:**
+> - **Video Encoder Node**: Converts raw images to compressed H.264/H.265 streams using Qualcomm VPU hardware
+> - **Video Decoder Node**: Decodes compressed video streams back to raw image frames
+> - **Camera Support**: Seamlessly accepts input from QRB ROS Camera package with zero-copy transport
+> - **File I/O Components**: CompressedWriter and ImageWriter for saving video data to files
+> - **Hardware Acceleration**: Leverages Qualcomm Video Processing Unit (VPU) for efficient encoding/decoding
+> - **Memory Management**: Utilizes DMA buffers and qrb_ros_transport for zero-copy operations
+
+## 🔎 Table of Contents
+
+  * [APIs](#-apis)
+  * [Supported Targets](#-supported-targets)
+  * [Installation](#-installation)
+  * [Usage](#-usage)
+  * [Build from Source](#-build-from-source)
+  * [Contributing](#-contributing)
+  * [License](#-license)
+
+## ⚓ APIs
+
+### 🔹 QRB ROS Video APIs
+
+#### ROS Interfaces
+
+**Topics: Encoder**
+
+| Topic | Message Type | Description |
+|-------|-------------|-------------|
+| `input` | `qrb_ros::transport::type::Image` | Uncompressed YUV frames |
+| `output` | `sensor_msgs::msg::CompressedImage` | Compressed H.264/H.265 video stream |
+
+
+**Topics: Decoder**
+
+| Topic | Message Type | Description |
+|-------|-------------|-------------|
+| `input` | `sensor_msgs::msg::CompressedImage` | Compressed H.264/H.265 video stream |
+| `output` | `qrb_ros::transport::type::Image` | Decoded YUV frames |
+
+#### ROS Parameters
+
+**Video Encoder Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `format` | string | "h264" | Video codec format (h264/h265) |
+| `pixel_format` | string | "nv12" | Input pixel format (nv12/p010) |
+| `width` | int | 1920 | Video width |
+| `height` | int | 1080 | Video height |
+| `framerate` | int | 30 | Frames per second |
+| `bitrate` | int | 5000000 | Target bitrate in bits/second |
+| `rate_control` | string | "variable" | Rate control mode (variable/cbr) |
+| `profile` | string | "main" | Codec profile (baseline/main/high) |
+| `level` | string | "4.1" | Codec level |
+
+**Video Decoder Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `format` | string | "h264" | Input codec format |
+| `pixel-format` | string | "nv12" | Output pixel format |
+
+## 🎯 Supported Targets
+
+- **Ubuntu 24.04 LTS (Noble)**
+- **ROS 2 Humble Humble and Jazzy**
+
+Hardware Requirements:
+- Qualcomm Video Processing Unit (VPU) for hardware acceleration
+- Camera module compatible with qrb_ros_camera package (optional)
+
+---
+
+## ✨ Installation
+
+
+## 🚀 Usage
+
+Launch the video encoder for real-time video compression:
+
+```bash
+ros2 launch qrb_ros_video encoder_launch.py
+```
+
+Launch the video decoder for video decompression:
+
+```bash
+ros2 launch qrb_ros_video decoder_launch.py
+```
+
+**Example workflows:**
+
+1. **Local Video File Recording:**
+   ```bash
+   # Terminal 1: Start video encoder
+   ros2 launch qrb_ros_video encoder_launch.py
+   ```
+
+2. **Local Video File Playback:**
+   ```bash
+   # Terminal 1: Start video decoder
+   ros2 launch qrb_ros_video decoder_launch.py
+   ```
+---
+
+## 👨‍💻 Build from Source
 
 Currently, we only support build with QCLINUX SDK.
 
@@ -98,33 +212,16 @@ Currently, we only support build with QCLINUX SDK.
    (ssh) tar -zxf /opt/qrb_ros_video.tar.gz -C /opt/qcom/qirp-sdk/usr/
    ```
 
+## 🤝 Contributing
 
-## Deployment
+We love community contributions! Get started by reading our [CONTRIBUTING.md](CONTRIBUTING.md).  
+Feel free to create an issue for bug reports, feature requests, or any discussion 💡.
 
-Add additional notes about how to deploy this on a live system
+## ❤️ Contributors
 
+> 📌 **[Jean Xiao](jianxiao@qti.qualcomm.com)** 
 
-## Contributing
-
-We would love to have you as a part of the QRB ROS community. Whether you are helping us fix bugs, proposing new features, improving our documentation, or spreading the word, please refer to our [contribution guidelines](./CONTRIBUTING.md) and [code of conduct](./CODE_OF_CONDUCT.md).
-
-- Bug report: If you see an error message or encounter failures, please create a [bug report](../../issues)
-- Feature Request: If you have an idea or if there is a capability that is missing and would make development easier and more robust, please submit a [feature request](../../issues)
-
-
-
-## Documentation
-Please visit [QRB ROS Documentation](https://qualcomm-qrb-ros.github.io/) for more details.
-
-
-## Authors
-
-* **Jean Xiao** - *Initial work* - [jian xiao](https://quic_jianxiao.quicinc.com)
-
-See also the list of [contributors](https://github.com/your/project/contributors) who participated in this project.
-
-
-## License
+## 📜 License
 
 Project is licensed under the [BSD-3-clause License](https://spdx.org/licenses/BSD-3-Clause.html). See [LICENSE](./LICENSE) for the full license text.
 
