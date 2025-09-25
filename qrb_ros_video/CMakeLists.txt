@@ -20,6 +20,8 @@ include_directories(std_msgs_INCLUDE_DIRS)
 include_directories(sensor_msgs_INCLUDE_DIRS)
 include_directories(rclcpp_components_INCLUDE_DIRS)
 
+set(EXTRA_TO_INSTALL "")
+
 ament_auto_find_build_dependencies()
   
 ament_auto_add_library(ros2video_component SHARED src/video_decoder.cpp src/video_encoder.cpp)
@@ -93,6 +95,8 @@ install(TARGETS
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION lib/${PROJECT_NAME}
 )
+
+list(APPEND EXTRA_TO_INSTALL test/launch)
 endif()
 
-ament_auto_package(INSTALL_TO_SHARE launch)
+ament_auto_package(INSTALL_TO_SHARE ${EXTRA_TO_INSTALL})

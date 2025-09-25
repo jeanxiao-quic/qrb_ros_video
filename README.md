@@ -144,29 +144,23 @@ sudo apt install ros-jazzy-qrb-ros-video ros-jazzy-qrb-ros-video-test
 
 ## 🚀 Usage
 
-Launch the video encoder for real-time video compression:
-
-```bash
-ros2 launch qrb_ros_video encoder_launch.py
-```
-
-Launch the video decoder for video decompression:
-
-```bash
-ros2 launch qrb_ros_video decoder_launch.py
-```
-
 **Example workflows:**
 
 1. **Local Video File Recording:**
    ```bash
-   # Terminal 1: Start video encoder
+   # Preparation: 
+   # push YUV sample file 1920_1080_nv12.yuv to /data/ directory
+
+   # Execution:
    ros2 launch qrb_ros_video encoder_launch.py
    ```
 
 2. **Local Video File Playback:**
    ```bash
-   # Terminal 1: Start video decoder
+   # Preparation: 
+   # push YUV sample file 1920_1080.mp4 to /data/ directory
+
+   # Execution:
    ros2 launch qrb_ros_video decoder_launch.py
    ```
 ---
@@ -176,8 +170,12 @@ ros2 launch qrb_ros_video decoder_launch.py
 ```bash
 # Install build tools and dependencies
 sudo add-apt-repository ppa:ubuntu-qcom-iot/qcom-ppa
+sudo add-apt-repository ppa:ubuntu-qcom-iot/qirp
 sudo apt update
 sudo apt install build-essential cmake pkg-config
+
+# Install GStreamer development packages
+sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-devs
 
 # Install ROS2 Jazzy (if not already installed)
 # Follow instructions at https://docs.ros.org/en/jazzy/Installation.html
