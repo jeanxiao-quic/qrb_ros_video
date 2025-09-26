@@ -8,12 +8,6 @@ from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
 
 def generate_launch_description():
-    camera_info_config_file_path = os.path.join(
-        get_package_share_directory('qrb_ros_camera'),
-        'config', 'camera_info_imx577.yaml'
-    )
-    camera_info_path = camera_info_config_file_path
-    print(camera_info_path)
     """Generate launch description with multiple components."""
     container = ComposableNodeContainer(
         name='encoder_container',
