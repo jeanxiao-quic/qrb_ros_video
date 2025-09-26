@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(qrb_video_v4l2_lib VERSION 0.1.0)
+project(qrb_video_v4l2_lib VERSION 0.1.7)
 
 set(CMAKE_CXX_STANDARD 17)
 include(GNUInstallDirs)
