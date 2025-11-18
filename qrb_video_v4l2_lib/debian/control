@@ -1,0 +1,31 @@
+Source: qrb-video-v4l2-lib
+Section: libs
+Priority: optional
+Maintainer: Jean Xiao <jianxiao@qti.qualcomm.com>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.22),
+               pkg-config,
+               libgoogle-glog-dev
+Standards-Version: 4.6.0
+Homepage: https://github.com/qualcomm-qrb-ros/qrb-ros-video
+Vcs-Git: https://github.com/qualcomm-qrb-ros/qrb-ros-video.git
+Vcs-Browser: https://github.com/qualcomm-qrb-ros/qrb-ros-video
+
+Package: libqrb-video-v4l2-1
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: QRB Video V4L2 Library
+ A C++ library providing V4L2 video codec functionality for Qualcomm
+ Robotics platforms. This library enables hardware-accelerated video
+ encoding and decoding through the V4L2 interface.
+
+Package: libqrb-video-v4l2-dev
+Architecture: any
+Section: libdevel
+Depends: libqrb-video-v4l2-1 (= ${binary:Version}),
+         ${misc:Depends},
+         libgoogle-glog-dev
+Description: QRB Video V4L2 Library - development files
+ Development files for the QRB Video V4L2 Library, including headers
+ and CMake configuration files needed to build applications that use
+ the library. 

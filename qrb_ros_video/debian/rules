@@ -1,0 +1,33 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export CMAKE_BUILD_PARALLEL_LEVEL = $(shell nproc)
+
+# ROS 2 environment setup
+export ROS_DISTRO = jazzy
+export LD_LIBRARY_PATH = /opt/ros/$(ROS_DISTRO)/lib:/usr/lib/aarch64-linux-gnu:/usr/lib/aarch64-linux-gnu/libfakeroot
+export PATH = /opt/ros/$(ROS_DISTRO)/bin:/usr/bin
+export PYTHONPATH = /opt/ros/$(ROS_DISTRO)/lib/python3.12/site-packages
+
+%:
+	dh $@ --buildsystem=cmake
+
+override_dh_auto_configure:
+	if [ -f "/opt/ros/${ROS_DISTRO}/setup.sh" ]; then . "/opt/ros/${ROS_DISTRO}/setup.sh"; fi && \
+	dh_auto_configure -- \
+		-DCMAKE_BUILD_TYPE=Release \
+        -DAMENT_PREFIX_PATH="/opt/ros/$(ROS_DISTRO)" \
+		-DCMAKE_PREFIX_PATH="/opt/ros/$(ROS_DISTRO)" \
+        -DCMAKE_INSTALL_PREFIX=/opt/ros/$(ROS_DISTRO) \
+        -DCMAKE_INSTALL_LIBDIR=lib \
+		-DBUILD_TESTING=ON
+
+override_dh_auto_build:
+	if [ -f "/opt/ros/${ROS_DISTRO}/setup.sh" ]; then . "/opt/ros/${ROS_DISTRO}/setup.sh"; fi && \
+	dh_auto_build
+
+override_dh_shlibdeps:
+	dh_shlibdeps
+
+override_dh_auto_install:
+	dh_auto_install --destdir=debian/tmp
