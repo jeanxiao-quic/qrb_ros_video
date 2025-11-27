@@ -18,7 +18,7 @@
   <depend>ros2launch</depend>
   <depend>qrb_ros_transport_image_type</depend>
   <depend>libgoogle-glog-dev</depend>
-  <depend>libqrb-video-v4l2-dev</depend>
+  <depend>qrb_video_v4l2_lib</depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
