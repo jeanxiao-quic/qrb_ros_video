@@ -175,7 +175,7 @@ sudo apt update
 sudo apt install build-essential cmake pkg-config
 
 # Install GStreamer development packages
-sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-devs
+sudo apt install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 
 # Install ROS2 Jazzy (if not already installed)
 # Follow instructions at https://docs.ros.org/en/jazzy/Installation.html
@@ -191,9 +191,12 @@ cd ~/ros2_ws/src
 # Clone the repository (if not already cloned)
 git clone https://github.com/qualcomm-qrb-ros/qrb_ros_video qrb_ros_video
 
+# Set up ROS2 environment
+source /opt/ros/jazzy/setup.bash
+
 # Build the test nodes
 cd ~/ros2_ws
-colcon build --packages-select qrb_ros_video
+colcon build --packages-up-to qrb_ros_video
 
 # Source the workspace
 source install/setup.bash
