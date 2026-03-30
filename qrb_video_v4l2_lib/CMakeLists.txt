@@ -7,12 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include_directories(include include/utils include/v4l2)
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(glog REQUIRED libglog)
-
-set(INCLUDE_DIRS ${glog_INCLUDE_DIRS})
-
-include_directories(${INCLUDE_DIRS})
+find_library(GLOG_LIBRARY NAMES glog REQUIRED)
 add_compile_options(
   -Wall
   -Wpedantic
@@ -28,8 +23,8 @@ file(GLOB SOURCES src/utils/*.cpp src/*.cpp src/v4l2/*.cpp)
 
 add_library(v4l2codecs SHARED ${SOURCES})
 set_target_properties(v4l2codecs PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION 1)
-target_compile_definitions(v4l2codecs PRIVATE -D__USE_FILE_OFFSET64)
-target_link_libraries(v4l2codecs ${glog_LIBRARIES})
+target_compile_definitions(v4l2codecs PRIVATE -D__USE_FILE_OFFSET64 GLOG_USE_GLOG_EXPORT)
+target_link_libraries(v4l2codecs PRIVATE ${GLOG_LIBRARY})
 
 install(TARGETS v4l2codecs EXPORT ${PROJECT_NAME}Config
   DESTINATION ${CMAKE_INSTALL_LIBDIR} 
