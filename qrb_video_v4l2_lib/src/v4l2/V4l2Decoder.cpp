@@ -71,12 +71,25 @@ void V4l2Decoder::setCodecFormat()
 
 bool V4l2Decoder::reconfigurePort(bool port)
 {
-  auto ret = false;
   emptied_.get_future().get();
   if (port == OUTPUT_PORT) {
-    ret = reconfigureOutput();
+    bool ret = reconfigureOutput();
+    if (ret) {
+      // stopStreaming(INPUT_PORT);
+      // {
+      //   std::lock_guard<std::mutex> l(mutex_);
+      //   buffer_queued_[INPUT_PORT].clear();
+      // }
+      // startStreaming(INPUT_PORT);
+      // v4l2_decoder_cmd cmd = {};
+      // cmd.cmd = V4L2_DEC_CMD_START;
+      // getDriver()->decCommand(&cmd);
+      drainPendingInput();
+    }
+    emptied_ = std::promise<bool>();
+    return ret;
   }
-  return ret;
+  return false;
 }
 
 bool V4l2Decoder::reconfigureOutput()
@@ -85,7 +98,11 @@ bool V4l2Decoder::reconfigureOutput()
   prepareBufferPool<DmabufAllocator>(OUTPUT_PORT);
   startStreaming(OUTPUT_PORT);
   state = STARTED;
-  feedOutputBuffer();
+  for (int i = 0; i < 4; i++) {
+    if (!feedOutputBuffer()) {
+      break;
+    }
+  }
   return true;
 }
 

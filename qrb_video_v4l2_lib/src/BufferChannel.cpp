@@ -22,10 +22,15 @@ bool BufferChannel::queueBuffer(const std::shared_ptr<Buffer> & item)
 
 std::shared_ptr<Buffer> BufferChannel::acquireBuffer()
 {
-  auto msg = this->obtainMessage(MSG_ACQUIRE_BUFFER);
-  msg->data = std::shared_ptr<Buffer>();
-  this->sendMessage(msg);
-  return std::any_cast<std::shared_ptr<Buffer> >(msg->data);
+  // Bypass the Looper: BufferPool::acquire() is mutex-protected and safe to call
+  // from any thread. Going through sendMessage() serializes with other Looper work
+  // (queueBuffer, flush, reconfigure) and can time out when the Looper is busy
+  // processing a long V4L2 ioctl, causing spurious null returns.
+  std::shared_ptr<Buffer> buffer;
+  if (cb) {
+    cb->onAcquireBuffer(buffer);
+  }
+  return buffer;
 }
 
 bool BufferChannel::dispatchBuffer(const std::shared_ptr<Buffer> & item)

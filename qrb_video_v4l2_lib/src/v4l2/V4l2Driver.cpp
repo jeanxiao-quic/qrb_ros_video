@@ -183,35 +183,35 @@ void V4l2Driver::threadLoop()
     }
     if ((pollFds[0].revents & POLLIN) || (pollFds[0].revents & POLLRDNORM)) {
       LOGI("V4l2Driver: IN/RDNORM received.\n");
-      memset(&buffer, 0, sizeof(buffer));
-      memset(&plane[0], 0, sizeof(plane));
-      buffer.type = OUTPUT_MPLANE;
-      buffer.m.planes = plane;
-      buffer.length = 1;
-      buffer.memory = V4L2_MEMORY_DMABUF;
       do {
+        memset(&buffer, 0, sizeof(buffer));
+        memset(plane, 0, sizeof(plane));
+        buffer.type = OUTPUT_MPLANE;
+        buffer.m.planes = plane;
+        buffer.length = 1;
+        buffer.memory = V4L2_MEMORY_DMABUF;
         if (ioctl(devfd, VIDIOC_DQBUF, &buffer)) {
           break;
         }
 
-        if (callback->onV4l2BufferDone(&buffer)) {
+        if (!callback->onV4l2BufferDone(&buffer)) {
           mError = true;
         }
       } while (true);
     }
     if ((pollFds[0].revents & POLLOUT) || (pollFds[0].revents & POLLWRNORM)) {
       LOGI("V4l2Driver: OUT/WRNORM received.\n");
-      memset(&buffer, 0, sizeof(buffer));
-      memset(&plane[0], 0, sizeof(plane));
-      buffer.type = INPUT_MPLANE;
-      buffer.m.planes = plane;
-      buffer.length = 1;
-      buffer.memory = V4L2_MEMORY_DMABUF;
       do {
+        memset(&buffer, 0, sizeof(buffer));
+        memset(plane, 0, sizeof(plane));
+        buffer.type = INPUT_MPLANE;
+        buffer.m.planes = plane;
+        buffer.length = 1;
+        buffer.memory = V4L2_MEMORY_DMABUF;
         if (ioctl(devfd, VIDIOC_DQBUF, &buffer)) {
           break;
         }
-        if (callback->onV4l2BufferDone(&buffer)) {
+        if (!callback->onV4l2BufferDone(&buffer)) {
           mError = true;
         }
       } while (true);

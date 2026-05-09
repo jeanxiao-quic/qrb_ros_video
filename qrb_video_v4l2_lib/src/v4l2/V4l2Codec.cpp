@@ -126,10 +126,7 @@ bool V4l2Codec::start()
     prepareBufferPool<DmabufAllocator>(OUTPUT_PORT);
     getDriver()->registerCallbacks(this);
     getDriver()->start();
-    if (auto client_handler = notifier.lock()) {
-      handler_ = std::make_shared<EventHandler>(
-          shared_from_this(), std::dynamic_pointer_cast<Handler>(client_handler).get());
-    }
+    handler_ = std::make_shared<EventHandler>(shared_from_this(), nullptr);
 
     startStreaming(INPUT_PORT);
     startStreaming(OUTPUT_PORT);
@@ -184,6 +181,21 @@ bool V4l2Codec::reconfigurePort(bool port)
   return true;
 }
 
+void V4l2Codec::drainPendingInput()
+{
+  std::deque<std::shared_ptr<Buffer>> pending;
+  {
+    std::lock_guard<std::mutex> lk(pending_mutex_);
+    pending = std::move(pending_input_);
+  }
+  LOGI("%s: draining %zu buffered input frames after reconfigure", __PRETTY_FUNCTION__,
+      pending.size());
+  for (auto & buf : pending) {
+    queueInputBuffer(buf);
+    feedOutputBuffer();
+  }
+}
+
 bool V4l2Codec::startStreaming(bool port)
 {
   bool ret = false;
@@ -234,6 +246,25 @@ bool V4l2Codec::onV4l2BufferDone(v4l2_buffer * buffer)
   if (index == OUTPUT_PORT && state == STARTED) {
     prepareForDispatch(doneBuffer, buffer);
     ret = dispatchBuffer(doneBuffer);
+    if (buffer->flags & V4L2_BUF_FLAG_LAST) {
+      // BUF_FLAG_LAST arrived before SOURCE_CHANGE was processed (fast-path race).
+      // Mirror the RECONFIGURING-path: flush + signal emptied_ so reconfigurePort()
+      // unblocks immediately when it calls emptied_.get_future().get().
+      LOGI("V4L2_BUF_FLAG_LAST received in STARTED state on index %d, triggering reconfigure",
+          index);
+      state = RECONFIGURING;
+      flush(OUTPUT_PORT);
+      {
+        std::lock_guard<std::mutex> cleanup(mutex_);
+        buffer_queued_[OUTPUT_PORT].clear();
+      }
+      emptied_.set_value(true);
+      auto msg = handler_->obtainMessage(MSG_RECONFIGURE_PORT);
+      msg->data = OUTPUT_PORT;
+      handler_->sendMessageAsync(msg);
+    }
+  } else {
+    ret = true;
   }
 
   return ret;
@@ -241,13 +272,24 @@ bool V4l2Codec::onV4l2BufferDone(v4l2_buffer * buffer)
 
 bool V4l2Codec::onV4l2EventDone(v4l2_event * event)
 {
-  LOGI("onV4l2EventDone: received type %d", event->type);
+  LOGI("onV4l2EventDone: received type %d changes %#x state %d", event->type,
+      event->u.src_change.changes, static_cast<int>(state.load()));
   if (event->type == V4L2_EVENT_SOURCE_CHANGE &&
       event->u.src_change.changes == V4L2_EVENT_SRC_CH_RESOLUTION) {
-    state = RECONFIGURING;
-    auto msg = handler_->obtainMessage(MSG_RECONFIGURE_PORT);
-    msg->data = OUTPUT_PORT;
-    handler_->sendMessageAsync(msg);
+    if (state != RECONFIGURING) {
+      // Guard: BUF_FLAG_LAST may have arrived in STARTED state and already
+      // set state=RECONFIGURING and sent MSG_RECONFIGURE_PORT. Don't double-trigger.
+      LOGI("onV4l2EventDone: SOURCE_CHANGE/RESOLUTION → triggering reconfigure");
+      state = RECONFIGURING;
+      auto msg = handler_->obtainMessage(MSG_RECONFIGURE_PORT);
+      msg->data = OUTPUT_PORT;
+      handler_->sendMessageAsync(msg);
+    } else {
+      LOGI("onV4l2EventDone: SOURCE_CHANGE/RESOLUTION dropped — already RECONFIGURING");
+    }
+  } else {
+    LOGI("onV4l2EventDone: event type %d changes %#x not handled (dropped)", event->type,
+        event->u.src_change.changes);
   }
   return true;
 }
@@ -365,6 +407,7 @@ std::shared_ptr<Buffer> V4l2Codec::acquireOutputBuffer() const
 
 bool EventHandler::handleMessage(const std::shared_ptr<Message> & msg)
 {
+  LOGI("EventHandler::handleMessage: received msg type %d", msg->what);
   bool ret = false;
   switch (msg->what) {
     case V4l2Codec::MSG_FLUSH_PORT: {
@@ -392,23 +435,34 @@ bool V4l2Codec::queueInputBuffer(const std::shared_ptr<Buffer> & item)
     buffer = std::shared_ptr<V4l2Buffer>(
         new V4l2Buffer(*item), [backend = item](V4l2Buffer * buffer) { delete buffer; });
   }
-  if (not buffer || state == FLUSHING) {
+  if (not buffer) {
     LOGI(
         "%s: failed with buffer %p state %d", __PRETTY_FUNCTION__, buffer, static_cast<int>(state));
     return false;
   }
+  if (state == FLUSHING || state == RECONFIGURING) {
+    std::lock_guard<std::mutex> lk(pending_mutex_);
+    pending_input_.push_back(item);
+    LOGI("%s: buffered input frame during state %d, pending count: %zu", __PRETTY_FUNCTION__,
+        static_cast<int>(state.load()), pending_input_.size());
+    return true;
+  }
   v4l2_buffer buf = buffer->operator v4l2_buffer();
   buf.type = INPUT_MPLANE;
-  std::lock_guard l(mutex_);
-  if (buffer_queued_[INPUT_PORT].find(buf.index) != buffer_queued_[INPUT_PORT].end()) {
-    buf.index = buffer_queued_[INPUT_PORT].size();
+  {
+    std::lock_guard l(mutex_);
+    if (buffer_queued_[INPUT_PORT].find(buf.index) != buffer_queued_[INPUT_PORT].end()) {
+      buf.index = buffer_queued_[INPUT_PORT].size();
+    }
+    buffer_queued_[INPUT_PORT][buf.index] = buffer;
   }
   ret = getDriver()->queueBuf(&buf);
   if (ret == 0) {
     LOGI("%s: queued index %d buffer type %d", __PRETTY_FUNCTION__, buf.index, buf.type);
-    buffer_queued_[INPUT_PORT][buf.index] = buffer;
   } else {
     LOGE("%s: failed to queue buffer %d buffer type %d", __PRETTY_FUNCTION__, buf.index, buf.type);
+    std::lock_guard l(mutex_);
+    buffer_queued_[INPUT_PORT].erase(buf.index);
   }
 
   return ret == 0;
@@ -422,7 +476,7 @@ bool V4l2Codec::queueOutputBuffer(const std::shared_ptr<Buffer> & item)
     buffer = std::shared_ptr<V4l2Buffer>(
         new V4l2Buffer(*item), [backend = item](V4l2Buffer * buffer) { delete buffer; });
   }
-  if (not buffer || state == FLUSHING) {
+  if (not buffer || state == FLUSHING || state == RECONFIGURING) {
     // A buffer from external source
     LOGI(
         "%s: failed with buffer %p state %d", __PRETTY_FUNCTION__, buffer, static_cast<int>(state));
@@ -430,16 +484,20 @@ bool V4l2Codec::queueOutputBuffer(const std::shared_ptr<Buffer> & item)
   }
   v4l2_buffer buf = buffer->operator v4l2_buffer();
   buf.type = OUTPUT_MPLANE;
-  std::lock_guard l(mutex_);
-  if (buffer_queued_[OUTPUT_PORT].find(buf.index) != buffer_queued_[OUTPUT_PORT].end()) {
-    buf.index = buffer_queued_[OUTPUT_PORT].size();
+  {
+    std::lock_guard l(mutex_);
+    if (buffer_queued_[OUTPUT_PORT].find(buf.index) != buffer_queued_[OUTPUT_PORT].end()) {
+      buf.index = buffer_queued_[OUTPUT_PORT].size();
+    }
+    buffer_queued_[OUTPUT_PORT][buf.index] = buffer;
   }
   ret = getDriver()->queueBuf(&buf);
   if (ret == 0) {
     LOGI("%s: queued index %d buffer type %d", __PRETTY_FUNCTION__, buf.index, buf.type);
-    buffer_queued_[OUTPUT_PORT][buf.index] = buffer;
   } else {
     LOGE("%s: failed to queue buffer %d buffer type %d", __PRETTY_FUNCTION__, buf.index, buf.type);
+    std::lock_guard l(mutex_);
+    buffer_queued_[OUTPUT_PORT].erase(buf.index);
   }
   return ret == 0;
 }

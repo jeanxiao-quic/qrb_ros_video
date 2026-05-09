@@ -9,6 +9,7 @@
 #define QRB_VIDEO_V4L2__V4L2CODEC_HPP_
 
 #include <array>
+#include <deque>
 #include <linux/v4l2_vidc_extensions.hpp>
 #include <memory>
 #include <string>
@@ -118,6 +119,8 @@ protected:
   std::shared_ptr<BufferPool> outputPool;
   std::array<std::map<uint32_t, std::shared_ptr<V4l2Buffer> >, 2> buffer_queued_;
   std::mutex mutex_;
+  std::deque<std::shared_ptr<Buffer>> pending_input_;
+  std::mutex pending_mutex_;
   std::promise<bool> emptied_;
   std::shared_ptr<EventHandler> handler_;
 
@@ -139,6 +142,8 @@ protected:
   bool feedOutputBuffer();
 
   bool flush(bool input);
+
+  void drainPendingInput();
 
   bool prepareForDispatch(std::shared_ptr<V4l2Buffer> & buf, v4l2_buffer * vb);
 
@@ -315,7 +320,7 @@ protected:
     explicit operator v4l2_requestbuffers() const;
 
     std::map<CodecType, std::array<int32_t, 2> > default_counts = {
-      { CodecType::VideoDecoder, { 4, 12 } },
+      { CodecType::VideoDecoder, { 8, 20 } },
       { CodecType::VideoEncoder, { 12, 4 } },
     };
 
