@@ -363,10 +363,13 @@ protected:
       RCLCPP_INFO(this->get_logger(), "Detected pixel format: %s", pixel_format_.c_str());
     }
 
-    // Create a buffer from the dmabuf
+    // Create a buffer from the dmabuf.
+    // Use GST_FD_MEMORY_FLAG_DONT_CLOSE so the GstMemory only *borrows* the fd:
+    // ownership stays with msg->dmabuf (kept alive via the ReleaseData qdata below),
+    // which closes the fd exactly once in its destructor.
     GstAllocator * allocator = gst_dmabuf_allocator_new();
-    GstMemory * memory =
-        gst_dmabuf_allocator_alloc(allocator, msg->dmabuf->fd(), msg->dmabuf->size());
+    GstMemory * memory = gst_dmabuf_allocator_alloc_with_flags(
+        allocator, msg->dmabuf->fd(), msg->dmabuf->size(), GST_FD_MEMORY_FLAG_DONT_CLOSE);
 
     if (memory == nullptr) {
       RCLCPP_ERROR(this->get_logger(), "Failed to allocate memory");
