@@ -32,11 +32,13 @@ public:
 protected:
   void setCodecFormat();
 
+  bool startPort(bool input) override;
+
   bool reconfigurePort(bool input) override;
 
-  bool reconfigureOutput();
-
   bool drain() override;
+
+  bool outputPortStarted = false;
 };
 
 }  // namespace qrb::video_v4l2

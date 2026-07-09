@@ -150,6 +150,8 @@ protected:
 
   virtual bool stopStreaming(bool port);
 
+  virtual bool startPort(bool input);
+
   friend class EventHandler;
 
   template <typename T>
