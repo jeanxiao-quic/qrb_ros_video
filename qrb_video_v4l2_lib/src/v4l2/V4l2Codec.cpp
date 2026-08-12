@@ -122,8 +122,7 @@ bool V4l2Codec::start()
 {
   if (state == STOPPED) {
     populateSettings();
-    prepareBufferPool<DmabufAllocator>(INPUT_PORT);
-    prepareBufferPool<DmabufAllocator>(OUTPUT_PORT);
+    startPort(INPUT_PORT);
     getDriver()->registerCallbacks(this);
     getDriver()->start();
     if (auto client_handler = notifier.lock()) {
@@ -131,13 +130,18 @@ bool V4l2Codec::start()
           shared_from_this(), std::dynamic_pointer_cast<Handler>(client_handler).get());
     }
 
-    startStreaming(INPUT_PORT);
-    startStreaming(OUTPUT_PORT);
+    startPort(OUTPUT_PORT);
     state = STARTED;
   } else {
     LOGE("V4l2Codec::start() called with invalid state %d", state.load());
   }
   return true;
+}
+
+bool V4l2Codec::startPort(bool input)
+{
+  prepareBufferPool<DmabufAllocator>(input);
+  return startStreaming(input);
 }
 
 bool V4l2Codec::stop()
@@ -448,6 +452,9 @@ bool V4l2Codec::feedOutputBuffer()
 {
   bool result = false;
   std::shared_ptr<Buffer> buffer;
+  if (not outputPool) {
+    return false;
+  }
   outputPool->acquire(buffer);
   if (buffer) {
     result = queueOutputBuffer(buffer);

@@ -60,6 +60,7 @@ bool V4l2Decoder::stop()
   getDriver()->unsubscribeEvent(V4L2_EVENT_EOS);
   cmd.cmd = V4L2_DEC_CMD_STOP;
   driver->decCommand(&cmd);
+  outputPortStarted = false;
   return V4l2Codec::stop();
 }
 
@@ -69,21 +70,26 @@ void V4l2Decoder::setCodecFormat()
   *setting = compressedFormat;
 }
 
-bool V4l2Decoder::reconfigurePort(bool port)
+bool V4l2Decoder::startPort(bool port)
 {
-  auto ret = false;
-  emptied_.get_future().get();
   if (port == OUTPUT_PORT) {
-    ret = reconfigureOutput();
+    // Output resolution isn't known until the driver reports it via
+    // V4L2_EVENT_SOURCE_CHANGE, so defer prepareBufferPool/streamOn until then.
+    return true;
   }
-  return ret;
+  return V4l2Codec::startPort(port);
 }
 
-bool V4l2Decoder::reconfigureOutput()
+bool V4l2Decoder::reconfigurePort(bool port)
 {
+  if (outputPortStarted) {
+    emptied_.get_future().get();
+    emptied_ = std::promise<bool>();
+  }
   get<V4l2Format>(OUTPUT_PORT)->get();
   prepareBufferPool<DmabufAllocator>(OUTPUT_PORT);
   startStreaming(OUTPUT_PORT);
+  outputPortStarted = true;
   state = STARTED;
   feedOutputBuffer();
   return true;
