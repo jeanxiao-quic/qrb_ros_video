@@ -138,6 +138,7 @@ protected:
     size_t image_size = item->size();
     msg->dmabuf = std::shared_ptr<lib_mem_dmabuf::DmaBuffer>(
         new lib_mem_dmabuf::DmaBuffer(dup(fd), image_size), destroy_callback);
+    msg->dmabuf->set_auto_release(false);
     msg->encoding = this->pixel_format;
     this->publisher->publish(std::move(msg));
     RCLCPP_DEBUG(this->get_logger(),
