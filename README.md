@@ -149,7 +149,7 @@ sudo apt install ros-jazzy-qrb-ros-video ros-jazzy-qrb-ros-video-test
 1. **Local Video File Recording:**
    ```bash
    # Preparation: 
-   # push YUV sample file 1920_1080_nv12.yuv to /data/ directory
+   # push YUV sample file 1920_1080_nv12.yuv to HOME directory
 
    # Execution:
    ros2 launch qrb_ros_video encoder_launch.py
@@ -158,7 +158,7 @@ sudo apt install ros-jazzy-qrb-ros-video ros-jazzy-qrb-ros-video-test
 2. **Local Video File Playback:**
    ```bash
    # Preparation: 
-   # push YUV sample file 1920_1080.mp4 to /data/ directory
+   # push YUV sample file 1920_1080.mp4 to HOME directory
 
    # Execution:
    ros2 launch qrb_ros_video decoder_launch.py

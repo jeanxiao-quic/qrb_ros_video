@@ -8,6 +8,7 @@ from launch_ros.actions import ComposableNodeContainer
 from launch_ros.descriptions import ComposableNode
 
 def generate_launch_description():
+    workspace = os.path.expanduser("~")
     container = ComposableNodeContainer(
         name='decoder_container',
         namespace='',
@@ -45,7 +46,7 @@ def generate_launch_description():
                 namespace='playback_ns',
                 name='reader_node',
                 parameters=[{
-                    'url': "/data/1920_1080.mp4",
+                    'url': os.path.join(workspace, "1920_1080.mp4"),
                     'format': "mp4",
                     'width': "1920",
                     'height': "1080",
