@@ -119,6 +119,9 @@ protected:
   std::array<std::map<uint32_t, std::shared_ptr<V4l2Buffer> >, 2> buffer_queued_;
   std::mutex mutex_;
   std::promise<bool> emptied_;
+  std::promise<bool> drained_;
+  std::atomic<bool> draining_ = false;
+  std::atomic<bool> eosReached_ = false;
   std::shared_ptr<EventHandler> handler_;
 
   constexpr static bool INPUT_PORT = true;
@@ -143,6 +146,8 @@ protected:
   bool prepareForDispatch(std::shared_ptr<V4l2Buffer> & buf, v4l2_buffer * vb);
 
   virtual bool drain();
+
+  bool drainAndWait();
 
   virtual bool reconfigurePort(bool port);
 

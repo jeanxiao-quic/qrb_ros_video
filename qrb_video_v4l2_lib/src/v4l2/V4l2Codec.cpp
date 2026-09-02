@@ -121,6 +121,7 @@ bool V4l2Codec::configure(const Setting & s)
 bool V4l2Codec::start()
 {
   if (state == STOPPED) {
+    eosReached_ = false;
     populateSettings();
     startPort(INPUT_PORT);
     getDriver()->registerCallbacks(this);
@@ -183,6 +184,31 @@ bool V4l2Codec::drain()
   return false;
 }
 
+bool V4l2Codec::drainAndWait()
+{
+  if (state != STARTED) {
+    return false;
+  }
+  if (eosReached_) {
+    LOGI("V4l2Codec::drainAndWait() already drained, skipping redundant drain");
+    return true;
+  }
+  drained_ = std::promise<bool>();
+  draining_ = true;
+  // Ensure the driver has a CAPTURE buffer available to mark with
+  // V4L2_BUF_FLAG_LAST; without one queued, drain completion never signals.
+  feedOutputBuffer();
+  if (not drain()) {
+    draining_ = false;
+    return false;
+  }
+  LOGE("V4l2Codec::drainAndWait() succeeded in sending drain command, waiting for completion");
+  drained_.get_future().get();
+  LOGE("V4l2Codec::drainAndWait() completed");
+  draining_ = false;
+  return true;
+}
+
 bool V4l2Codec::reconfigurePort(bool port)
 {
   return true;
@@ -238,6 +264,13 @@ bool V4l2Codec::onV4l2BufferDone(v4l2_buffer * buffer)
   if (index == OUTPUT_PORT && state == STARTED) {
     prepareForDispatch(doneBuffer, buffer);
     ret = dispatchBuffer(doneBuffer);
+    if (buffer->flags & V4L2_BUF_FLAG_LAST) {
+      eosReached_ = true;
+      if (draining_) {
+        LOGI("Drain completed on output port");
+        drained_.set_value(true);
+      }
+    }
   }
 
   return ret;
@@ -273,6 +306,7 @@ bool V4l2Codec::queueBuffer(const std::shared_ptr<Buffer> & item)
     LOGI("Drain Codec");
     drain();
   } else {
+    eosReached_ = false;
     queueInputBuffer(item);
   }
   bool ret = feedOutputBuffer();

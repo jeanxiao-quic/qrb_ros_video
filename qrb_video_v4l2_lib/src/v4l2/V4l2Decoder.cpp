@@ -55,11 +55,9 @@ bool V4l2Decoder::start()
 
 bool V4l2Decoder::stop()
 {
-  v4l2_decoder_cmd cmd = {};
   getDriver()->unsubscribeEvent(V4L2_EVENT_SOURCE_CHANGE);
   getDriver()->unsubscribeEvent(V4L2_EVENT_EOS);
-  cmd.cmd = V4L2_DEC_CMD_STOP;
-  driver->decCommand(&cmd);
+  drainAndWait();
   outputPortStarted = false;
   return V4l2Codec::stop();
 }
