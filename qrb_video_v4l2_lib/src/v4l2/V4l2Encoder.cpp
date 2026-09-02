@@ -73,9 +73,7 @@ bool V4l2Encoder::start()
 
 bool V4l2Encoder::stop()
 {
-  v4l2_encoder_cmd cmd = {};
-  cmd.cmd = V4L2_ENC_CMD_STOP;
-  driver->encCommand(&cmd);
+  drainAndWait();
   return V4l2Codec::stop();
 }
 
