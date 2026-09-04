@@ -121,7 +121,13 @@ bool V4l2Codec::configure(const Setting & s)
 bool V4l2Codec::start()
 {
   if (state == STOPPED) {
-    eosReached_ = false;
+    {
+      std::lock_guard lock(drainMutex_);
+      draining_ = false;
+      eosReached_ = false;
+      stopping_ = false;
+      drainResult_ = false;
+    }
     populateSettings();
     startPort(INPUT_PORT);
     getDriver()->registerCallbacks(this);
@@ -154,6 +160,8 @@ bool V4l2Codec::stop()
     getDriver()->stop();
     state = STOPPED;
   }
+  stopping_ = false;
+  drainCv_.notify_all();
   return true;
 }
 
@@ -186,27 +194,94 @@ bool V4l2Codec::drain()
 
 bool V4l2Codec::drainAndWait()
 {
-  if (state != STARTED) {
+  stopping_ = true;
+  bool issueDrain = false;
+  {
+    std::unique_lock lock(drainMutex_);
+    drainCv_.wait(lock, [this]() { return state != RECONFIGURING; });
+    if (eosReached_) {
+      LOGI("V4l2Codec::drainAndWait() already drained");
+      return true;
+    }
+    if (not draining_) {
+      if (state != STARTED) {
+        return false;
+      }
+      draining_ = true;
+      drainResult_ = false;
+      issueDrain = true;
+    }
+  }
+
+  if (issueDrain) {
+    if (not ensureOutputBufferQueued()) {
+      LOGE("V4l2Codec::drainAndWait() cannot drain without a queued output buffer");
+      completeDrain(false);
+    } else if (not drain()) {
+      LOGE("V4l2Codec::drainAndWait() failed to send drain command");
+      completeDrain(false);
+    }
+  }
+
+  std::unique_lock lock(drainMutex_);
+  drainCv_.wait(lock, [this]() { return not draining_; });
+  return drainResult_;
+}
+
+bool V4l2Codec::requestDrain()
+{
+  {
+    std::lock_guard lock(drainMutex_);
+    if (eosReached_ || draining_) {
+      return true;
+    }
+    if (state != STARTED) {
+      return false;
+    }
+    draining_ = true;
+    drainResult_ = false;
+  }
+
+  if (not ensureOutputBufferQueued()) {
+    LOGE("V4l2Codec::requestDrain() cannot drain without a queued output buffer");
+    completeDrain(false);
     return false;
   }
-  if (eosReached_) {
-    LOGI("V4l2Codec::drainAndWait() already drained, skipping redundant drain");
-    return true;
-  }
-  drained_ = std::promise<bool>();
-  draining_ = true;
-  // Ensure the driver has a CAPTURE buffer available to mark with
-  // V4L2_BUF_FLAG_LAST; without one queued, drain completion never signals.
-  feedOutputBuffer();
   if (not drain()) {
-    draining_ = false;
+    LOGE("V4l2Codec::requestDrain() failed to send drain command");
+    completeDrain(false);
     return false;
   }
-  LOGE("V4l2Codec::drainAndWait() succeeded in sending drain command, waiting for completion");
-  drained_.get_future().get();
-  LOGE("V4l2Codec::drainAndWait() completed");
-  draining_ = false;
   return true;
+}
+
+bool V4l2Codec::ensureOutputBufferQueued()
+{
+  {
+    std::lock_guard lock(mutex_);
+    if (not buffer_queued_[OUTPUT_PORT].empty()) {
+      return true;
+    }
+  }
+  if (not feedOutputBuffer()) {
+    return false;
+  }
+  std::lock_guard lock(mutex_);
+  return not buffer_queued_[OUTPUT_PORT].empty();
+}
+
+void V4l2Codec::completeDrain(bool result)
+{
+  {
+    std::lock_guard lock(drainMutex_);
+    if (not draining_) {
+      return;
+    }
+    drainResult_ = result;
+    eosReached_ = result;
+    draining_ = false;
+  }
+  drainCv_.notify_all();
 }
 
 bool V4l2Codec::reconfigurePort(bool port)
@@ -265,10 +340,17 @@ bool V4l2Codec::onV4l2BufferDone(v4l2_buffer * buffer)
     prepareForDispatch(doneBuffer, buffer);
     ret = dispatchBuffer(doneBuffer);
     if (buffer->flags & V4L2_BUF_FLAG_LAST) {
-      eosReached_ = true;
       if (draining_) {
-        LOGI("Drain completed on output port");
-        drained_.set_value(true);
+        LOGI("Drain output received; waiting for client delivery");
+        auto handler = handler_;
+        if (handler) {
+          auto msg = handler->obtainMessage(MSG_COMPLETE_DRAIN);
+          handler->sendMessageAsync(msg);
+        } else {
+          completeDrain(true);
+        }
+      } else {
+        eosReached_ = true;
       }
     }
   }
@@ -281,6 +363,11 @@ bool V4l2Codec::onV4l2EventDone(v4l2_event * event)
   LOGI("onV4l2EventDone: received type %d", event->type);
   if (event->type == V4L2_EVENT_SOURCE_CHANGE &&
       event->u.src_change.changes == V4L2_EVENT_SRC_CH_RESOLUTION) {
+    std::lock_guard lock(drainMutex_);
+    if (stopping_ || draining_ || state != STARTED) {
+      LOGI("Ignoring source change while codec is stopping or draining");
+      return true;
+    }
     state = RECONFIGURING;
     auto msg = handler_->obtainMessage(MSG_RECONFIGURE_PORT);
     msg->data = OUTPUT_PORT;
@@ -304,8 +391,12 @@ bool V4l2Codec::queueBuffer(const std::shared_ptr<Buffer> & item)
 {
   if (item->isEOS()) {
     LOGI("Drain Codec");
-    drain();
+    return requestDrain();
   } else {
+    if (draining_ || stopping_) {
+      LOGE("Cannot queue input while codec is draining or stopping");
+      return false;
+    }
     eosReached_ = false;
     queueInputBuffer(item);
   }
@@ -415,6 +506,10 @@ bool EventHandler::handleMessage(const std::shared_ptr<Message> & msg)
     } break;
     case V4l2Codec::MSG_FEED_OUTPUT_BUFFER: {
       ret = self->feedOutputBuffer();
+    } break;
+    case V4l2Codec::MSG_COMPLETE_DRAIN: {
+      self->completeDrain(true);
+      ret = true;
     } break;
     default:
       LOGE("%s: Unsupported message type %d received", __PRETTY_FUNCTION__, msg->what);

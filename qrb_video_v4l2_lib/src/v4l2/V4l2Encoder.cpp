@@ -73,8 +73,8 @@ bool V4l2Encoder::start()
 
 bool V4l2Encoder::stop()
 {
-  drainAndWait();
-  return V4l2Codec::stop();
+  bool drained = drainAndWait();
+  return V4l2Codec::stop() && drained;
 }
 
 void V4l2Encoder::setCodecFormat()
