@@ -8,6 +8,7 @@
 #include "BufferChannel.hpp"
 
 #include <cassert>
+#include <thread>
 
 #include "Log.hpp"
 
@@ -53,8 +54,12 @@ bool BufferChannel::start()
 bool BufferChannel::stop()
 {
   auto msg = this->obtainMessage(MSG_STOP);
-  this->sendMessage(msg);
-  return true;
+  msg->flags = Handler::Flags::SYNC;
+  auto future = msg->promise.get_future();
+  if (not this->sendMessageAsync(msg)) {
+    return false;
+  }
+  return future.get();
 }
 
 bool BufferChannel::seek()
@@ -105,7 +110,12 @@ bool BufferChannel::handleMessage(const std::shared_ptr<Message> & msg)
       break;
     case MSG_STOP:
       if (callback) {
-        ret = callback->onStop();
+        auto self = std::static_pointer_cast<BufferChannel>(shared_from_this());
+        std::thread([self, callback, msg]() {
+          auto result = callback->onStop();
+          self->finishMessage(msg, result);
+        }).detach();
+        return true;
       }
       break;
     case MSG_PAUSE:

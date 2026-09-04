@@ -9,6 +9,7 @@
 #define QRB_VIDEO_V4L2__V4L2CODEC_HPP_
 
 #include <array>
+#include <condition_variable>
 #include <linux/v4l2_vidc_extensions.hpp>
 #include <memory>
 #include <string>
@@ -109,6 +110,7 @@ protected:
     MSG_FLUSH_PORT,
     MSG_RECONFIGURE_PORT,
     MSG_FEED_OUTPUT_BUFFER,
+    MSG_COMPLETE_DRAIN,
   };
 
   std::atomic<State> state;
@@ -119,9 +121,12 @@ protected:
   std::array<std::map<uint32_t, std::shared_ptr<V4l2Buffer> >, 2> buffer_queued_;
   std::mutex mutex_;
   std::promise<bool> emptied_;
-  std::promise<bool> drained_;
+  std::mutex drainMutex_;
+  std::condition_variable drainCv_;
   std::atomic<bool> draining_ = false;
   std::atomic<bool> eosReached_ = false;
+  std::atomic<bool> stopping_ = false;
+  bool drainResult_ = false;
   std::shared_ptr<EventHandler> handler_;
 
   constexpr static bool INPUT_PORT = true;
@@ -148,6 +153,12 @@ protected:
   virtual bool drain();
 
   bool drainAndWait();
+
+  bool requestDrain();
+
+  bool ensureOutputBufferQueued();
+
+  void completeDrain(bool result);
 
   virtual bool reconfigurePort(bool port);
 
