@@ -81,6 +81,10 @@ void V4l2Encoder::setCodecFormat()
 {
   auto setting = get<V4l2Format>(OUTPUT_PORT);
   *setting = compressedFormat;
+
+  auto input = get<V4l2Format>(INPUT_PORT);
+  Resolution resolution{ input->width, input->height };
+  *setting = resolution;
 }
 
 bool V4l2Encoder::drain()
