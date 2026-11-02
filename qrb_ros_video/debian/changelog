@@ -1,0 +1,30 @@
+ros-jazzy-qrb-ros-video (0.1.7) noble; urgency=medium
+
+  * Update usage and installation instructions in README.md
+  * Add clang-format file for coding style
+  * Update README.md with new template
+  * Fix MP4 container video processing with framerate handling
+  * Add GStreamer-based test nodes
+  * Improve code quality
+  * Add commit-lint.yml file
+  * Add chapter on commit message format
+  * Enable actionlint
+
+ -- Jean Xiao <jianxiao@qti.qualcomm.com>  Wed, 25 Sep 2025 12:00:00 +0000
+
+ros-jazzy-qrb-ros-video (0.1.1) noble; urgency=medium
+
+  * Add ros-jazzy-qrb-ros-video-test package
+  * Include test utilities and components for video validation
+  * Provide ImageReader, ImageWriter, CompressedReader, CompressedWriter nodes
+
+ -- Jean Xiao <jianxiao@qti.qualcomm.com>  Thu, 16 Jan 2025 12:00:00 +0000
+
+ros-jazzy-qrb-ros-video (0.1.0) noble; urgency=medium
+
+  * Initial release of QRB ROS Video package
+  * Video encoding and decoding ROS 2 nodes
+  * Hardware-accelerated video processing components
+  * Integration with V4L2 codecs
+
+ -- Jean Xiao <jianxiao@qti.qualcomm.com>  Mon, 06 Jan 2025 12:00:00 +0000 

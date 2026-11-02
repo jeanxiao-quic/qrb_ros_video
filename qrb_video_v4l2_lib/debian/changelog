@@ -1,0 +1,27 @@
+qrb-video-v4l2-lib (0.2.0) stable; urgency=medium
+
+  * Add a GStreamer backend selectable through VideoCodec::Target
+  * Report codec failures through the new Notifier::onError callback
+  * Select backends at build time with QRB_VIDEO_ENABLE_V4L2/_GST
+  * Raise the libqrb-video-v4l2-1 shlibs minimum to 0.2.0: Notifier gained a vtable slot,
+    so consumers must be rebuilt against the 0.2.0 headers
+  * Default the shipped build to the GStreamer backend, with V4L2 still built and
+    reachable through the nodes' backend parameter
+
+ -- Jean Xiao <jianxiao@qti.qualcomm.com>  Mon, 21 Sep 2026 12:00:00 +0000
+
+qrb-video-v4l2-lib (0.1.2) stable; urgency=medium
+
+  * Fix: Ensure proper handling of video frame rates in MP4 container
+  * Update documentation for framerate processing
+  * Minor bug fixes and performance improvements
+
+ -- Jean Xiao <jianxiao@qti.qualcomm.com>  Tue, 29 Jul 2025 12:00:00 +0000
+
+qrb-video-v4l2-lib (0.1.0) noble; urgency=medium
+
+  * Initial release of QRB Video V4L2 Library
+  * Hardware-accelerated video encoding and decoding support
+  * V4L2 interface for Qualcomm Robotics platforms
+
+ -- Jean Xiao <jianxiao@qti.qualcomm.com>  Mon, 06 Jan 2025 12:00:00 +0000 
