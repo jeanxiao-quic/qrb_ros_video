@@ -29,6 +29,13 @@ public:
       decoder_ = Decoder::create(MIME_H265);
     else
       decoder_ = Decoder::create(MIME_H264);
+
+    if (not decoder_) {
+      RCLCPP_ERROR(
+          this->get_logger(), "Failed to create decoder for format %s", this->format.c_str());
+      throw std::runtime_error("failed to create video decoder");
+    }
+
     cb_.reset(this, [](auto * p) {});
     Format f = this->pixel_format == "p010" ? Format::P010 : Format::NV12;
     decoder_->configure(Setting::create(f));
@@ -48,6 +55,11 @@ public:
     publish_message_<Type>(item);
     RCLCPP_DEBUG(this->get_logger(), "output buffer: [%ld] publish completed", item->index);
     return true;
+  }
+
+  void onError(VideoCodec::Error code, const std::string & message) override
+  {
+    this->log_codec_error(code, message);
   }
 
 protected:

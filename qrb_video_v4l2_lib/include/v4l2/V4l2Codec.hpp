@@ -30,7 +30,7 @@ class EventHandler : public Handler
 {
 public:
   EventHandler(const std::shared_ptr<V4l2Codec> & c, Handler * another)
-    : Handler(another), self(c){};
+    : Handler(another), self(c) {};
 
   bool handleMessage(const std::shared_ptr<Message> & msg) override;
 

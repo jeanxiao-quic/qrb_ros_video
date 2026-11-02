@@ -38,6 +38,12 @@ public:
     else
       encoder_ = Encoder::create(MIME_H264);
 
+    if (not encoder_) {
+      RCLCPP_ERROR(
+          this->get_logger(), "Failed to create encoder for format %s", this->format.c_str());
+      throw std::runtime_error("failed to create video encoder");
+    }
+
     cb_.reset(this, [](auto * p) {});
     encoder_->setNotifier(cb_);
     configure_encoder();
@@ -59,6 +65,11 @@ public:
   {
     publish_message_<OutputMessageT>(item);
     return true;
+  }
+
+  void onError(VideoCodec::Error code, const std::string & message) override
+  {
+    this->log_codec_error(code, message);
   }
 
 protected:

@@ -75,13 +75,17 @@ public:
 
   int fd() const { return memory->fd(); }
 
-  Memory::Type type;
-  Flags flags;
-  timeval timestamp;
-  size_t index;
-  size_t sequence;
-  size_t bytesused;
-  off_t offset;
+  // Default-initialised on purpose. `Buffer() = default` leaves these indeterminate, and
+  // both queueBuffer() implementations branch on isEOS() for a freshly created Buffer -- so
+  // an uninitialised `flags` could spuriously trigger a drain. Flags has no zero enumerator,
+  // hence the cast.
+  Memory::Type type = Memory::Type::Linear;
+  Flags flags = static_cast<Flags>(0);
+  timeval timestamp = {};
+  size_t index = 0;
+  size_t sequence = 0;
+  size_t bytesused = 0;
+  off_t offset = 0;
   std::shared_ptr<Memory> memory;
 
   friend class BufferPool;

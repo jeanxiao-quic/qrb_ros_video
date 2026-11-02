@@ -128,6 +128,13 @@ bool BufferChannel::handleMessage(const std::shared_ptr<Message> & msg)
         ret = callback->onSeek();
       }
       break;
+    case MSG_ERROR: {
+      const auto & info = std::any_cast<const ErrorInfo &>(msg->data);
+      // notifyError() is inherited from VideoCodec and forwards to the notifier this
+      // channel was given, i.e. the client-supplied Notifier.
+      notifyError(info.code, info.message);
+      ret = true;
+    } break;
     default:
       break;
   }
@@ -139,5 +146,14 @@ bool Client::onBufferAvailable(const std::shared_ptr<Buffer> & item)
 {
   auto ret = dispatchBuffer(item);
   return ret;
+}
+
+void Client::onError(Error code, const std::string & message)
+{
+  // Hop onto our looper so the client never sees a callback on a backend thread, mirroring
+  // how onBufferAvailable defers through dispatchBuffer().
+  auto msg = this->obtainMessage(MSG_ERROR);
+  msg->data = ErrorInfo{ code, message };
+  this->sendMessageAsync(msg);
 }
 }  // namespace qrb::video_v4l2

@@ -8,6 +8,7 @@
 #ifndef QRB_ROS_VIDEO__VIDEO_NODE_HPP_
 #define QRB_ROS_VIDEO__VIDEO_NODE_HPP_
 
+#include <VideoCodec.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
 #include <string>
@@ -60,6 +61,31 @@ protected:
   typename rclcpp::Publisher<OutputMessageT>::SharedPtr publisher;
 
   virtual bool handle_message(const InputMessageT & msg) = 0;
+
+  // Maps a library error onto the node log, so failures that used to vanish are visible.
+  void log_codec_error(qrb::video_v4l2::VideoCodec::Error code, const std::string & message)
+  {
+    using Error = qrb::video_v4l2::VideoCodec::Error;
+    const char * kind = "internal";
+    switch (code) {
+      case Error::Device:
+        kind = "device";
+        break;
+      case Error::Negotiation:
+        kind = "negotiation";
+        break;
+      case Error::Memory:
+        kind = "memory";
+        break;
+      case Error::Timeout:
+        kind = "timeout";
+        break;
+      case Error::None:
+      case Error::Internal:
+        break;
+    }
+    RCLCPP_ERROR(get_logger(), "codec %s error: %s", kind, message.c_str());
+  }
 };
 
 class Stats

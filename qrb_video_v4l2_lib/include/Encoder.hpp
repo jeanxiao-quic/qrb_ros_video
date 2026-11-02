@@ -9,7 +9,6 @@
 #define QRB_VIDEO_V4L2__VIDEOENCODER_HPP_
 
 #include "BufferChannel.hpp"
-#include "v4l2/V4l2Encoder.hpp"
 
 namespace qrb::video_v4l2
 {
@@ -20,6 +19,8 @@ public:
   ~Encoder() = default;
 
   static std::shared_ptr<Client> create(std::string mime);
+
+  static std::shared_ptr<Client> create(std::string mime, VideoCodec::Target target);
 };
 }  // namespace qrb::video_v4l2
 

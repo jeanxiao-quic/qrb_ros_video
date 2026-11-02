@@ -112,6 +112,20 @@ flowchart LR
 | `format` | string | "h264" | Input codec format |
 | `pixel-format` | string | "nv12" | Output pixel format |
 
+### Codec backends
+
+Both nodes drive the Qualcomm video hardware through `qrb_video_v4l2_lib`, which ships two
+interchangeable backends:
+
+- **`gst`** — drives the `v4l2h264enc` / `v4l2h265enc` / `v4l2h264dec` / `v4l2h265dec`
+  GStreamer elements. Drain/EOS handling and decoder resolution-change renegotiation are
+  handled by GStreamer. This is the default in current builds.
+- **`v4l2`** — talks to the V4L2 M2M device directly.
+
+Both reach the same driver and are configured identically. Which backend the nodes use is a
+build-time choice (`QRB_VIDEO_ENABLE_V4L2`, `QRB_VIDEO_ENABLE_GST`,
+`QRB_VIDEO_DEFAULT_TARGET`); the nodes have no runtime parameter for it.
+
 ## 🎯 Supported Targets
 
 - **Ubuntu 24.04 LTS (Noble)**

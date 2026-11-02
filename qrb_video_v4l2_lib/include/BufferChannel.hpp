@@ -41,6 +41,13 @@ public:
 class BufferChannel : public VideoCodec, public Handler
 {
 public:
+  // Payload for MSG_ERROR, carried through Message::data.
+  struct ErrorInfo
+  {
+    Error code;
+    std::string message;
+  };
+
   enum
   {
     MSG_DISPATCH_BUFFER,
@@ -52,6 +59,7 @@ public:
     MSG_STOP,
     MSG_PAUSE,
     MSG_SEEK,
+    MSG_ERROR,
   };
 
   BufferChannel() = default;
@@ -96,6 +104,8 @@ class Client : public BufferChannel, public VideoCodec::Notifier
 {
 public:
   bool onBufferAvailable(const std::shared_ptr<Buffer> & item) override;
+
+  void onError(Error code, const std::string & message) override;
 };
 }  // namespace qrb::video_v4l2
 

@@ -5,7 +5,7 @@
 **************************************************************************************************
 */
 
-#include "V4l2Memory.hpp"
+#include "DmabufAllocator.hpp"
 
 #include <linux/dma-heap.h>
 #include <sys/ioctl.h>

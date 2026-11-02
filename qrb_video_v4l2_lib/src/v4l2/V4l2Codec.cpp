@@ -378,6 +378,8 @@ bool V4l2Codec::onV4l2EventDone(v4l2_event * event)
 
 bool V4l2Codec::onV4l2Error(error_t error)
 {
+  LOGE("%s: driver reported error %d (%s)", __PRETTY_FUNCTION__, error, std::strerror(error));
+  notifyError(Error::Device, std::string("v4l2 driver error: ") + std::strerror(error));
   return true;
 }
 

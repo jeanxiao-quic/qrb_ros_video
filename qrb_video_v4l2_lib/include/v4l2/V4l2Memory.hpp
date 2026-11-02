@@ -15,46 +15,14 @@
 #include <string>
 #include <utility>
 
+// DmabufAllocator/DmaAllocation used to be declared here. They are dma_heap wrappers with
+// nothing V4L2-specific about them, so they now live in the common headers; kept included
+// here because this backend allocates both its ports through them.
+#include "DmabufAllocator.hpp"
 #include "Memory.hpp"
 
 namespace qrb::video_v4l2
 {
-struct DmaAllocation : Allocation
-{
-  ~DmaAllocation() override
-  {
-    if (fd != -1) {
-      ::close(fd);
-    }
-  }
-
-  DmaAllocation() = default;
-};
-
-class DmabufAllocator : public Allocator
-{
-public:
-  DmabufAllocator(std::string name = "system") : Allocator(), name(name)
-  {
-    const auto dma_path = dma_dir + name;
-    fd = ::open(dma_path.c_str(), O_RDWR);
-  }
-
-  ~DmabufAllocator() override;
-
-  std::shared_ptr<Allocation> allocate() override;
-
-  void set(const MemoryView & view) override;
-
-private:
-  [[nodiscard]] std::shared_ptr<DmaAllocation> from(int memfd, size_t size) const;
-
-  std::string name;
-  std::string dma_dir = "/dev/dma_heap/";
-  Memory::Type type;
-  int fd = -1;
-};
-
 class V4l2Memory : public Memory
 {
 public:

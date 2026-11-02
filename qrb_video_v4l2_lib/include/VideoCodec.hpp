@@ -9,6 +9,7 @@
 #define QRB_VIDEO_V4L2__VIDEOCODEC_HPP_
 #include <any>
 #include <cstdint>
+#include <string>
 
 #include "Buffer.hpp"
 
@@ -163,6 +164,17 @@ public:
   enum class Target
   {
     V4l2,
+    Gst,
+  };
+
+  enum class Error
+  {
+    None,
+    Device,
+    Negotiation,
+    Memory,
+    Timeout,
+    Internal,
   };
 
   VideoCodec() = default;
@@ -185,6 +197,12 @@ public:
     virtual ~Notifier() = default;
 
     virtual bool onBufferAvailable(const std::shared_ptr<Buffer> & item) = 0;
+
+    // Not pure, so existing subclasses keep compiling unchanged. Note this does add a slot
+    // to Notifier's vtable: a subclass built against the pre-0.2.0 header has no such slot,
+    // so the library must not dispatch onError() on one. Safe here because the library and
+    // its consumers are built and shipped together; SOVERSION stays 1 on that basis.
+    virtual void onError(Error code, const std::string & message) {}
   };
 
   virtual std::shared_ptr<Buffer> acquireBuffer() = 0;
@@ -199,6 +217,16 @@ public:
   }
 
 protected:
+  // Backends report failures through here rather than each re-implementing the weak_ptr
+  // dance. Safe to call from any thread: Client hops onto its own looper before the
+  // client-supplied Notifier is invoked.
+  void notifyError(Error code, const std::string & message) const
+  {
+    if (const auto callback = notifier.lock()) {
+      callback->onError(code, message);
+    }
+  }
+
   std::weak_ptr<Notifier> notifier;
 };
 }  // namespace qrb::video_v4l2
