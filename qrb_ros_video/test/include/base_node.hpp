@@ -9,7 +9,6 @@
 #define QRB_ROS_VIDEO_TEST_BASE_NODE_HPP_
 
 #include <gst/gst.h>
-#include <gst/pbutils/pbutils.h>
 
 #include <cctype>
 #include <chrono>
@@ -81,6 +80,110 @@ protected:
     RCLCPP_WARN(this->get_logger(), "Creating pipeline: %s", pipeline_str.c_str());
   }
 
+  // Shared state for the parsebin-based discovery pass
+  struct ParseDiscoverData
+  {
+    BaseNode * self = nullptr;
+    GMainLoop * loop = nullptr;
+    guint timeout_id = 0;
+    bool found = false;
+    bool timed_out = false;
+    std::string codec;
+    std::string width;
+    std::string height;
+    std::string framerate;
+    float fps = 0.0f;
+  };
+
+  // Called when parsebin exposes a parsed elementary stream. We only read the
+  // caps of the first video pad; no decoder is ever instantiated.
+  static void on_parsebin_pad_added(GstElement *, GstPad * pad, gpointer user_data)
+  {
+    auto * data = static_cast<ParseDiscoverData *>(user_data);
+    if (data->found) {
+      return;
+    }
+
+    GstCaps * caps = gst_pad_get_current_caps(pad);
+    if (!caps) {
+      caps = gst_pad_query_caps(pad, nullptr);
+    }
+    if (!caps) {
+      return;
+    }
+
+    const GstStructure * structure = gst_caps_get_structure(caps, 0);
+    const gchar * name = structure ? gst_structure_get_name(structure) : nullptr;
+    if (!name || !g_str_has_prefix(name, "video/")) {
+      gst_caps_unref(caps);
+      return;
+    }
+
+    gchar * caps_str = gst_caps_to_string(caps);
+    RCLCPP_INFO(data->self->get_logger(), "Video caps: %s", caps_str);
+    g_free(caps_str);
+
+    if (g_str_has_suffix(name, "h264")) {
+      data->codec = "h264";
+    } else if (g_str_has_suffix(name, "h265") || g_str_has_suffix(name, "hevc")) {
+      data->codec = "h265";
+    } else {
+      data->codec = name;
+    }
+
+    gint width = 0;
+    gint height = 0;
+    if (gst_structure_get_int(structure, "width", &width) && width > 0) {
+      data->width = std::to_string(width);
+    }
+    if (gst_structure_get_int(structure, "height", &height) && height > 0) {
+      data->height = std::to_string(height);
+    }
+
+    gint fps_num = 0;
+    gint fps_denom = 0;
+    if (gst_structure_get_fraction(structure, "framerate", &fps_num, &fps_denom) && fps_num > 0 &&
+        fps_denom > 0) {
+      data->framerate = std::to_string(fps_num) + "/" + std::to_string(fps_denom);
+      data->fps = static_cast<float>(fps_num) / static_cast<float>(fps_denom);
+    }
+
+    data->found = true;
+    gst_caps_unref(caps);
+
+    // We have what we need - stop the discovery loop.
+    if (data->loop && g_main_loop_is_running(data->loop)) {
+      g_main_loop_quit(data->loop);
+    }
+  }
+
+  static gboolean bus_watch_cb(GstBus *, GstMessage * msg, gpointer user_data)
+  {
+    auto * data = static_cast<ParseDiscoverData *>(user_data);
+    switch (GST_MESSAGE_TYPE(msg)) {
+      case GST_MESSAGE_ERROR:
+      case GST_MESSAGE_EOS:
+        if (data->loop && g_main_loop_is_running(data->loop)) {
+          g_main_loop_quit(data->loop);
+        }
+        break;
+      default:
+        break;
+    }
+    return TRUE;
+  }
+
+  static gboolean discover_timeout_cb(gpointer user_data)
+  {
+    auto * data = static_cast<ParseDiscoverData *>(user_data);
+    data->timed_out = true;
+    data->timeout_id = 0;
+    if (data->loop && g_main_loop_is_running(data->loop)) {
+      g_main_loop_quit(data->loop);
+    }
+    return G_SOURCE_REMOVE;
+  }
+
   bool discover_pipeline()
   {
     if (url_.empty()) {
@@ -123,118 +226,90 @@ protected:
 
     RCLCPP_INFO(this->get_logger(), "Discovering video info from URI: %s", url_.c_str());
 
-    // Create a proper URI if file path is provided
-    std::string uri = url_;
-    if (uri.find("://") == std::string::npos) {
-      // Assume it's a file path and convert to URI
-      uri = "file://" + uri;
+    // Use a "filesrc ! parsebin" pipeline instead of GstDiscoverer/uridecodebin.
+    // parsebin only autoplugs demuxers and parsers - it deliberately stops before
+    // decoders, so no video hardware codec plugin is loaded during discovery.
+    // The parser's source-pad caps carry codec, resolution and framerate.
+    std::string location = url_;
+    const std::string file_prefix = "file://";
+    if (location.rfind(file_prefix, 0) == 0) {
+      location = location.substr(file_prefix.size());
     }
 
-    // Create a new discoverer with 2-second timeout
-    GstDiscoverer * discoverer = gst_discoverer_new(2 * GST_SECOND, nullptr);
-    if (!discoverer) {
-      return fallback_with_format("failed to create GstDiscoverer");
+    GstElement * pipeline = gst_pipeline_new("discover-pipeline");
+    GstElement * src = gst_element_factory_make("filesrc", nullptr);
+    GstElement * parse = gst_element_factory_make("parsebin", nullptr);
+    if (!pipeline || !src || !parse) {
+      if (src) {
+        gst_object_unref(src);
+      }
+      if (parse) {
+        gst_object_unref(parse);
+      }
+      if (pipeline) {
+        gst_object_unref(pipeline);
+      }
+      return fallback_with_format("failed to create parsebin discovery pipeline");
     }
 
-    // Attempt to discover the URI
-    GError * error = nullptr;
-    GstDiscovererInfo * info = gst_discoverer_discover_uri(discoverer, uri.c_str(), &error);
-
-    if (error) {
-      std::string error_msg = error->message;
-      g_error_free(error);
-      gst_object_unref(discoverer);
-      return fallback_with_format(error_msg);
+    g_object_set(src, "location", location.c_str(), nullptr);
+    gst_bin_add_many(GST_BIN(pipeline), src, parse, nullptr);
+    if (!gst_element_link(src, parse)) {
+      gst_object_unref(pipeline);
+      return fallback_with_format("failed to link filesrc to parsebin");
     }
 
-    if (!info) {
-      gst_object_unref(discoverer);
-      return fallback_with_format("discoverer returned null info");
+    ParseDiscoverData data;
+    data.self = this;
+    data.loop = g_main_loop_new(nullptr, FALSE);
+
+    g_signal_connect(parse, "pad-added", G_CALLBACK(on_parsebin_pad_added), &data);
+
+    // 2-second discovery timeout
+    GstBus * bus = gst_element_get_bus(pipeline);
+    guint bus_watch_id = gst_bus_add_watch(bus, bus_watch_cb, &data);
+    data.timeout_id = g_timeout_add_seconds(2, discover_timeout_cb, &data);
+
+    gst_element_set_state(pipeline, GST_STATE_PAUSED);
+    g_main_loop_run(data.loop);
+
+    if (data.timeout_id != 0) {
+      g_source_remove(data.timeout_id);
+    }
+    g_source_remove(bus_watch_id);
+    gst_element_set_state(pipeline, GST_STATE_NULL);
+    gst_object_unref(bus);
+    g_main_loop_unref(data.loop);
+    gst_object_unref(pipeline);
+
+    if (!data.found) {
+      return fallback_with_format(
+          data.timed_out ? "timed out discovering video stream" : "no valid video stream found");
     }
 
-    // Check if discovery result is valid
-    GstDiscovererResult result = gst_discoverer_info_get_result(info);
-    if (result != GST_DISCOVERER_OK && result != GST_DISCOVERER_MISSING_PLUGINS) {
-      gst_discoverer_info_unref(info);
-      gst_object_unref(discoverer);
-      return fallback_with_format("discoverer returned non-OK result");
+    // For mp4 input, detect coded stream format into pixel_format_
+    if (format_ == "mp4") {
+      pixel_format_ = data.codec;
+      RCLCPP_INFO(this->get_logger(), "Detected codec: %s", pixel_format_.c_str());
     }
 
-    // Extract video streams information
-    GList * list = gst_discoverer_info_get_video_streams(info);
-    if (!list) {
-      gst_discoverer_info_unref(info);
-      gst_object_unref(discoverer);
-      return fallback_with_format("no video streams found");
+    if (!data.width.empty()) {
+      width_ = data.width;
     }
-
-    bool found_stream = false;
-    // Extract information from the first video stream
-    for (GList * item = list; item != nullptr; item = item->next) {
-      GstDiscovererStreamInfo * stream_info = GST_DISCOVERER_STREAM_INFO(item->data);
-      if (GST_IS_DISCOVERER_VIDEO_INFO(stream_info)) {
-        GstDiscovererVideoInfo * video_info = GST_DISCOVERER_VIDEO_INFO(stream_info);
-
-        // Get codec information from caps
-        GstCaps * caps = gst_discoverer_stream_info_get_caps(stream_info);
-        if (caps) {
-          gchar * caps_str = gst_caps_to_string(caps);
-          RCLCPP_INFO(this->get_logger(), "Video caps: %s", caps_str);
-          g_free(caps_str);
-
-          // For mp4 input, detect coded stream format into pixel_format_
-          if (format_ == "mp4") {
-            const GstStructure * structure = gst_caps_get_structure(caps, 0);
-            if (structure) {
-              const gchar * codec_name = gst_structure_get_name(structure);
-              if (codec_name) {
-                if (g_str_has_suffix(codec_name, "h264")) {
-                  pixel_format_ = "h264";
-                } else if (g_str_has_suffix(codec_name, "h265") ||
-                           g_str_has_suffix(codec_name, "hevc")) {
-                  pixel_format_ = "h265";
-                } else {
-                  pixel_format_ = codec_name;
-                }
-                RCLCPP_INFO(this->get_logger(), "Detected codec: %s", pixel_format_.c_str());
-              }
-            }
-          }
-          gst_caps_unref(caps);
-        }
-
-        // Get resolution and framerate
-        width_ = std::to_string(gst_discoverer_video_info_get_width(video_info));
-        height_ = std::to_string(gst_discoverer_video_info_get_height(video_info));
-
-        gint fps_num = gst_discoverer_video_info_get_framerate_num(video_info);
-        gint fps_denom = gst_discoverer_video_info_get_framerate_denom(video_info);
-
-        // Avoid division by zero
-        if (fps_denom > 0 && fps_num > 0) {
-          auto framerate = std::to_string(fps_num) + "/" + std::to_string(fps_denom);
-          auto fps = static_cast<float>(fps_num) / static_cast<float>(fps_denom);
-          if (fps != fps_) {
-            RCLCPP_WARN(
-                this->get_logger(), "Detected framerate: %s (%f fps)", framerate.c_str(), fps);
-          }
-        }
-
-        RCLCPP_INFO(this->get_logger(), "Video properties: %sx%s @ %s fps", width_.c_str(),
-            height_.c_str(), framerate_.c_str());
-
-        found_stream = true;
-        break;  // We only need information from the first video stream
+    if (!data.height.empty()) {
+      height_ = data.height;
+    }
+    if (!data.framerate.empty()) {
+      framerate_ = data.framerate;
+      if (data.fps > 0.0f && data.fps != fps_) {
+        RCLCPP_WARN(this->get_logger(), "Detected framerate: %s (%f fps)", data.framerate.c_str(),
+            data.fps);
+        fps_ = data.fps;
       }
     }
 
-    g_list_free(list);
-    gst_discoverer_info_unref(info);
-    gst_object_unref(discoverer);
-
-    if (!found_stream) {
-      return fallback_with_format("no valid video stream found");
-    }
+    RCLCPP_INFO(this->get_logger(), "Video properties: %sx%s @ %s fps", width_.c_str(),
+        height_.c_str(), framerate_.c_str());
 
     RCLCPP_INFO(this->get_logger(), "Successfully discovered video information");
     return true;
