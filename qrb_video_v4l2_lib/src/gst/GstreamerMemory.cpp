@@ -22,10 +22,6 @@ GstVideoFormat toGstVideoFormat(Format format)
       return GST_VIDEO_FORMAT_NV12;
     case Format::P010:
       return GST_VIDEO_FORMAT_P010_10LE;
-    // The UBWC formats come from the meta-qcom gstreamer1.0-plugins-base deltas. They are
-    // enum values, not macros, so they cannot be probed with #ifdef -- look them up by name
-    // instead, which degrades to UNKNOWN against an unpatched GStreamer rather than failing
-    // to compile.
     case Format::NV12C:
       return gst_video_format_from_string("NV12_Q08C");
     case Format::TP10C:
@@ -56,20 +52,29 @@ std::shared_ptr<Buffer> wrapSample(GstSample * sample, Format fallbackFormat, si
   }
 
   auto * mem = gst_buffer_peek_memory(gstbuf, 0);
-  if (not gst_is_dmabuf_memory(mem)) {
-    // Do not paper over this: it means capture-io-mode=dmabuf was not honoured, and every
-    // downstream consumer expects an fd it can dup() into a ROS message.
-    LOGE("%s: output memory is not a dmabuf; capture-io-mode was not honoured", __func__);
+  const bool isDmabuf = gst_is_dmabuf_memory(mem);
+  // Some elements (qvidc's encoders) always hand back the bitstream in system memory. That is
+  // acceptable for compressed output only: the ROS layer reads it through data()/bytesused and
+  // has no need of an fd. Raw output is deliberately not accepted this way -- it would hide a
+  // misconfigured pipeline, and raw consumers do need a dmabuf.
+  const bool isCompressed = toGstMediaType(fallbackFormat) != nullptr;
+  if (not isDmabuf and not isCompressed) {
+    LOGE("%s: raw output memory is not a dmabuf", __func__);
     return nullptr;
   }
 
   auto allocation = std::make_shared<Allocation>();
-  allocation->fd = gst_dmabuf_memory_get_fd(mem);
-  allocation->flags = Allocation::Usage::DMABUF;
-
   gsize offset = 0;
   gsize maxsize = 0;
-  allocation->size = gst_memory_get_sizes(mem, &offset, &maxsize);
+  if (isDmabuf) {
+    allocation->fd = gst_dmabuf_memory_get_fd(mem);
+    allocation->flags = Allocation::Usage::DMABUF;
+    allocation->size = gst_memory_get_sizes(mem, &offset, &maxsize);
+  } else {
+    allocation->fd = -1;
+    allocation->flags = Allocation::Usage::MMAP;
+    allocation->size = gst_buffer_get_size(gstbuf);
+  }
   allocation->offset = static_cast<off_t>(offset);
 
   // Prefer the caps on the sample: for the decoder these track mid-stream resolution
@@ -96,9 +101,21 @@ std::shared_ptr<Buffer> wrapSample(GstSample * sample, Format fallbackFormat, si
     allocation->view.planes[0].size = allocation->size;
   }
 
+  std::shared_ptr<Memory> memory;
+  if (isDmabuf) {
+    memory = std::make_shared<GstreamerMemory>(allocation);
+  } else {
+    auto system = std::make_shared<GstreamerSystemMemory>(allocation, gstbuf);
+    if (not system->isMapped()) {
+      LOGE("%s: failed to map system-memory output", __func__);
+      return nullptr;
+    }
+    memory = std::move(system);
+  }
+
   auto * owned = gst_sample_ref(sample);
   auto * raw = new Buffer();
-  raw->memory = std::make_shared<GstreamerMemory>(allocation);
+  raw->memory = std::move(memory);
   raw->type = allocation->view.type;
   raw->index = index;
   raw->sequence = index;

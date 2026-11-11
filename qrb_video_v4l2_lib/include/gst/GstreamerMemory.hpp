@@ -16,9 +16,6 @@
 #include "Buffer.hpp"
 #include "Memory.hpp"
 
-// Note on naming: these types are deliberately NOT called GstMemory/GstBuffer/GstCodec.
-// They live in namespace qrb::video_v4l2, so such a name would shadow GStreamer's own
-// global C types for every unqualified use inside the namespace.
 namespace qrb::video_v4l2
 {
 // Memory backed by a dmabuf fd owned by a GstSample that we hold a ref to. The base
@@ -33,6 +30,38 @@ public:
   ~GstreamerMemory() override = default;
 };
 
+class GstreamerSystemMemory : public Memory
+{
+public:
+  GstreamerSystemMemory(const std::shared_ptr<Allocation> & allocation, GstBuffer * buffer)
+    : Memory(allocation), buffer_(gst_buffer_ref(buffer))
+  {
+    if (gst_buffer_map(buffer_, &info_, GST_MAP_READ)) {
+      mapped_ = true;
+      base = info_.data;
+    }
+  }
+
+  ~GstreamerSystemMemory() override
+  {
+    if (mapped_) {
+      gst_buffer_unmap(buffer_, &info_);
+    }
+    gst_buffer_unref(buffer_);
+  }
+
+  bool isMapped() const { return mapped_; }
+
+  void map() override {}
+
+  void unmap() override {}
+
+private:
+  GstBuffer * buffer_;
+  GstMapInfo info_ = {};
+  bool mapped_ = false;
+};
+
 // Wraps an output GstSample as a Buffer. The sample -- not merely its GstBuffer -- is kept
 // alive for as long as the returned Buffer, because the caps that describe the frame hang
 // off the sample and the decoder's resolution can change between samples.
@@ -43,11 +72,6 @@ public:
 std::shared_ptr<Buffer> wrapSample(GstSample * sample, Format fallbackFormat, size_t index);
 
 // Wraps an input Buffer's dmabuf fd as a GstBuffer ready for gst_app_src_push_buffer().
-//
-// The fd is adopted with GST_FD_MEMORY_FLAG_DONT_CLOSE so ownership stays with the
-// producer (matching the non-owning Allocation the ROS nodes build), and a ref to `item`
-// is attached as qdata so the producer gets its buffer back only once the codec is done
-// with it -- the same contract BufferPool's alias-deleter provides on the V4L2 path.
 GstBuffer * wrapBuffer(GstAllocator * allocator,
     const std::shared_ptr<Buffer> & item,
     const MemoryView & view,

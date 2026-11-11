@@ -19,9 +19,6 @@
 
 namespace qrb::video_v4l2
 {
-// Profile/level are negotiated through caps on this backend rather than by writing CIDs, so
-// the mappings are to GStreamer's caps strings. Names must match gstv4l2h264codec.c /
-// gstv4l2h265codec.c, which is where they get turned back into V4L2 control values.
 const std::unordered_map<uint32_t, const char *> GstreamerCodec::avcProfileNames = {
   { Profile::AVC_BASELINE, "baseline" },
   { Profile::AVC_CONSTRAINED_BASELINE, "constrained-baseline" },
@@ -75,7 +72,7 @@ const std::unordered_map<uint32_t, const char *> GstreamerCodec::hevcLevelNames 
   { Level::HEVC_6_2, "6.2" },
 };
 
-GstreamerCodec::GstreamerCodec(CodecType type, Format compressed)
+GstreamerCodec::GstreamerCodec(CodecType type, Format compressed, const std::string & elementSuffix)
   : type(type), compressedFormat(compressed)
 {
   // Guarded, and never paired with gst_deinit(): the hosting process (a ROS component
@@ -84,6 +81,15 @@ GstreamerCodec::GstreamerCodec(CodecType type, Format compressed)
     gst_init(nullptr, nullptr);
   }
   dmabuf_ = gst_dmabuf_allocator_new();
+
+  const std::string vidc = "qvidc" + elementSuffix;
+  if (auto * factory = gst_element_factory_find(vidc.c_str())) {
+    gst_object_unref(factory);
+    elementFamily_ = ElementFamily::Vidc;
+    codecElementName_ = vidc;
+  } else {
+    codecElementName_ = "v4l2" + elementSuffix;
+  }
 }
 
 GstreamerCodec::~GstreamerCodec()

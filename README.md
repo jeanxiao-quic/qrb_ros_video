@@ -117,7 +117,7 @@ flowchart LR
 Both nodes drive the Qualcomm video hardware through `qrb_video_v4l2_lib`, which ships two
 interchangeable backends:
 
-- **`gst`** — drives the `v4l2h264enc` / `v4l2h265enc` / `v4l2h264dec` / `v4l2h265dec`
+- **`gst`** — drives the `qvidch264enc` / `qvidch265enc` / `qvidch264dec` / `qvidch265dec` (VIDC, preferred when installed) or `v4l2h264enc` / `v4l2h265enc` / `v4l2h264dec` / `v4l2h265dec`
   GStreamer elements. Drain/EOS handling and decoder resolution-change renegotiation are
   handled by GStreamer. This is the default in current builds.
 - **`v4l2`** — talks to the V4L2 M2M device directly.

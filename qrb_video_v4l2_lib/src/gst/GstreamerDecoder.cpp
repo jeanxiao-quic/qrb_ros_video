@@ -20,11 +20,6 @@ std::shared_ptr<Client> GstreamerDecoder::create(const Format & compressed)
   return client;
 }
 
-std::string GstreamerDecoder::codecElementName() const
-{
-  return compressedFormat == Format::H264 ? "v4l2h264dec" : "v4l2h265dec";
-}
-
 std::string GstreamerDecoder::parserElementName() const
 {
   return compressedFormat == Format::H264 ? "h264parse" : "h265parse";
@@ -45,6 +40,19 @@ GstCaps * GstreamerDecoder::buildSinkCaps() const
 
 GstCaps * GstreamerDecoder::buildSrcCaps() const
 {
+  if (elementFamily() == ElementFamily::Vidc) {
+    const GstVideoFormat fmt = toGstVideoFormat(settings.pixelFormat);
+    if (fmt == GST_VIDEO_FORMAT_UNKNOWN || settings.pixelFormat == Format::NV12C) {
+      LOGE("%s: pixel format %d is not supported by the VIDC decoder", __PRETTY_FUNCTION__,
+          static_cast<int>(settings.pixelFormat));
+      return nullptr;
+    }
+    auto * caps = gst_caps_new_simple(
+        "video/x-raw", "format", G_TYPE_STRING, gst_video_format_to_string(fmt), nullptr);
+    gst_caps_set_features_simple(caps, gst_caps_features_new("memory:DMABuf", nullptr));
+    return caps;
+  }
+
   const char * drmFormat = nullptr;
   switch (settings.pixelFormat) {
     case Format::NV12:
@@ -70,16 +78,18 @@ GstCaps * GstreamerDecoder::buildSrcCaps() const
     return nullptr;
   }
 
-  // Constrain the pixel format only. Width and height are left unfixed on purpose: this is
-  // what lets v4l2h264dec renegotiate on a mid-stream resolution change without the
-  // RECONFIGURING state machine the V4L2 backend needs. Each output sample carries its own
-  // caps, which wrapSample() reads back.
   return gst_caps_new_simple(
       "video/x-raw", "format", G_TYPE_STRING, gst_video_format_to_string(fmt), nullptr);
 }
 
 void GstreamerDecoder::configureCodecElement(GstElement * codec) const
 {
+  // qvidc has no io-mode properties: its output is always dmabuf-backed, which the
+  // memory:DMABuf caps feature in buildSrcCaps() enforces.
+  if (elementFamily() == ElementFamily::Vidc) {
+    return;
+  }
+
   // Compressed input is small and already copied once by the caller, so MMAP on the output
   // queue is fine and avoids constraining the producer's allocation. Capture must be dmabuf
   // so decoded frames leave as fds for zero-copy ROS transport.

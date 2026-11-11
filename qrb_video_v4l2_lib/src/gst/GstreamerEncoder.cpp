@@ -20,11 +20,6 @@ std::shared_ptr<Client> GstreamerEncoder::create(const Format & compressed)
   return client;
 }
 
-std::string GstreamerEncoder::codecElementName() const
-{
-  return compressedFormat == Format::H264 ? "v4l2h264enc" : "v4l2h265enc";
-}
-
 GstCaps * GstreamerEncoder::buildSinkCaps() const
 {
   const GstVideoFormat fmt = toGstVideoFormat(settings.pixelFormat);
@@ -39,6 +34,11 @@ GstCaps * GstreamerEncoder::buildSinkCaps() const
           "width", G_TYPE_INT, static_cast<gint>(settings.resolution.width), "height", G_TYPE_INT,
           static_cast<gint>(settings.resolution.height), "framerate", GST_TYPE_FRACTION,
           static_cast<gint>(settings.framerate.value), 1, nullptr);
+  if (elementFamily() == ElementFamily::Vidc) {
+    // Producer-owned dmabufs go in zero-copy; the feature also makes the plugin treat the
+    // input as an external pool.
+    gst_caps_set_features_simple(caps, gst_caps_features_new("memory:DMABuf", nullptr));
+  }
   return caps;
 }
 
@@ -54,9 +54,16 @@ GstCaps * GstreamerEncoder::buildSrcCaps() const
   auto * caps = gst_caps_new_simple(media, "stream-format", G_TYPE_STRING, "byte-stream",
       "alignment", G_TYPE_STRING, "au", nullptr);
 
-  // Profile and level are negotiated through caps on this backend. gstv4l2videoenc probes
-  // each candidate with S_CTRL and falls back, so an unsupported request surfaces as a
-  // negotiation error rather than being silently ignored as it was on the V4L2 path.
+  // The VIDC src pad template carries no profile/level fields, so adding them would make
+  // negotiation fail outright.
+  if (elementFamily() == ElementFamily::Vidc) {
+    if (settings.profile.has_value() or settings.level.has_value()) {
+      LOGE(
+          "%s: profile/level are not negotiable on the VIDC encoder, ignored", __PRETTY_FUNCTION__);
+    }
+    return caps;
+  }
+
   if (settings.profile.has_value()) {
     if (const char * name = profileName(settings.profile->value)) {
       gst_caps_set_simple(caps, "profile", G_TYPE_STRING, name, nullptr);
@@ -75,8 +82,40 @@ GstCaps * GstreamerEncoder::buildSrcCaps() const
   return caps;
 }
 
+static GstPadProbeReturn queryEncoderAllocation(GstPad * pad, GstPadProbeInfo *, gpointer)
+{
+  if (auto * caps = gst_pad_get_current_caps(pad)) {
+    auto * query = gst_query_new_allocation(caps, TRUE);
+    if (not gst_pad_query(pad, query)) {
+      LOGE("%s: allocation query to the encoder failed", __func__);
+    }
+    gst_query_unref(query);
+    gst_caps_unref(caps);
+  }
+  return GST_PAD_PROBE_REMOVE;
+}
+
 void GstreamerEncoder::configureCodecElement(GstElement * codec) const
 {
+  if (elementFamily() == ElementFamily::Vidc) {
+    // No io-mode / extra-controls on qvidc; bitrate is a plain property.
+    if (settings.bitrate.has_value() && settings.bitrate->enable) {
+      g_object_set(codec, "target-bitrate", static_cast<guint>(settings.bitrate->value), nullptr);
+      gst_util_set_object_arg(G_OBJECT(codec), "rate-control",
+          settings.bitrate->mode == Bitrate::CBR ? "constant" : "VBR-CFR");
+    }
+    // inline-header repeats SPS/PPS before each IDR so a byte-stream consumer can join
+    // mid-stream.
+    g_object_set(codec, "use-external-pool", TRUE, "inline-header", TRUE, nullptr);
+
+    if (auto * sinkPad = gst_element_get_static_pad(codec, "sink")) {
+      gst_pad_add_probe(
+          sinkPad, GST_PAD_PROBE_TYPE_BUFFER, queryEncoderAllocation, nullptr, nullptr);
+      gst_object_unref(sinkPad);
+    }
+    return;
+  }
+
   // dmabuf-import on the output (sink) queue is what makes the input path zero-copy:
   // gst_v4l2_allocator_import_dmabuf binds our fd straight into the V4L2 plane group. There
   // is no silent copy fallback in this mode -- import either succeeds or the flow errors --

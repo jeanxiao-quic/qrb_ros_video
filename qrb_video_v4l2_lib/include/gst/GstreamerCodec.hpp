@@ -27,9 +27,6 @@
 
 namespace qrb::video_v4l2
 {
-// A codec backed by the gstv4l2 elements (v4l2h264enc / v4l2h265enc / v4l2h264dec / ...)
-// rather than by direct ioctls. Same device, same driver -- but drain/EOS, caps
-// renegotiation and buffer recycling are owned upstream instead of by this library.
 //
 // Base-class set matches V4l2Codec so BufferChannel/Client/Looper/Handler and the threading
 // model are reused unchanged.
@@ -38,7 +35,9 @@ class GstreamerCodec : public VideoCodec,
                        public std::enable_shared_from_this<GstreamerCodec>
 {
 public:
-  GstreamerCodec(CodecType type, Format compressed);
+  // `elementSuffix` names the codec element without its plugin prefix (e.g. "h264dec"); see
+  // elementFamily().
+  GstreamerCodec(CodecType type, Format compressed, const std::string & elementSuffix);
 
   ~GstreamerCodec() override;
 
@@ -89,8 +88,16 @@ protected:
     std::optional<BufferCount> bufferCount;
   };
 
+  enum class ElementFamily
+  {
+    V4l2,  // gstv4l2: v4l2h264enc / v4l2h264dec / ...
+    Vidc,  // VIDC: qvidch264enc / qvidch264dec / ...
+  };
+
+  ElementFamily elementFamily() const { return elementFamily_; }
+  const std::string & codecElementName() const { return codecElementName_; }
+
   // Subclass hooks. Called once, from start(), before the pipeline goes to PLAYING.
-  virtual std::string codecElementName() const = 0;
   virtual std::string parserElementName() const { return {}; }
   virtual GstCaps * buildSinkCaps() const = 0;
   virtual GstCaps * buildSrcCaps() const = 0;
@@ -112,6 +119,11 @@ protected:
   Format compressedFormat;
   Settings settings;
 
+private:
+  ElementFamily elementFamily_ = ElementFamily::V4l2;
+  std::string codecElementName_;
+
+protected:
   GstElement * pipeline_ = nullptr;
   GstElement * source_ = nullptr;
   GstElement * codec_ = nullptr;

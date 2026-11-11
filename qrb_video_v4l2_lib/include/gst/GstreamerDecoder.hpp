@@ -17,7 +17,9 @@ class GstreamerDecoder : public GstreamerCodec
 {
 public:
   explicit GstreamerDecoder(const Format & compressed)
-    : GstreamerCodec(CodecType::VideoDecoder, compressed)
+    : GstreamerCodec(CodecType::VideoDecoder,
+          compressed,
+          compressed == Format::H264 ? "h264dec" : "h265dec")
   {
   }
 
@@ -26,8 +28,6 @@ public:
   static std::shared_ptr<Client> create(const Format & compressed);
 
 protected:
-  std::string codecElementName() const override;
-
   std::string parserElementName() const override;
 
   GstCaps * buildSinkCaps() const override;
